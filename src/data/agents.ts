@@ -6,6 +6,7 @@ export const AGENT_STATUSES = ["working", "idle", "done", "error"] as const;
 
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 export type AgentId = "gm" | "email" | "finance" | "cover" | "instagram";
+export type AgentRuntimeSource = "gemini" | "local-runtime";
 export type RoomId = "gm" | "email" | "finance" | "creative";
 
 export interface StatusMeta {
@@ -57,14 +58,43 @@ export interface CompletedTask {
   titleAr: string;
   timeAr: string;
   outcome?: "done" | "error";
+  /** Full Arabic summary returned by the runtime. */
+  logAr?: string;
+  /** Which runtime produced the task. */
+  source?: AgentRuntimeSource;
+  /** Set for tasks created in this browser so timeAr stays accurate after reloads. */
+  completedAt?: number;
 }
 
 export interface ActiveTask {
+  id?: string;
   titleAr: string;
   progress: number;
   noteAr: string;
   startedAt?: number;
   durationMs?: number;
+  startAr?: string;
+  completionAr?: string;
+  logAr?: string;
+  source?: AgentRuntimeSource;
+}
+
+export function formatCompletedTimeAr(task: CompletedTask): string {
+  if (!task.completedAt) return task.timeAr;
+  const minutes = Math.max(0, Math.floor((Date.now() - task.completedAt) / 60_000));
+  if (minutes < 1) return "الآن";
+  if (minutes < 60) return `منذ ${arabicCount(minutes, "دقيقة", "دقيقتين", "دقائق")}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `منذ ${arabicCount(hours, "ساعة", "ساعتين", "ساعات")}`;
+  const days = Math.floor(hours / 24);
+  return `منذ ${arabicCount(days, "يوم", "يومين", "أيام")}`;
+}
+
+function arabicCount(value: number, singular: string, dual: string, plural: string): string {
+  if (value === 1) return singular;
+  if (value === 2) return dual;
+  if (value <= 10) return `${value} ${plural}`;
+  return `${value} ${singular}`;
 }
 
 export interface QuickAction {
@@ -462,10 +492,28 @@ export function cloneAgents(agents: Agent[]): Agent[] {
   }));
 }
 
+export interface AgentTaskInput {
+  id: string;
+  titleAr: string;
+  durationMs: number;
+  startAr?: string;
+  completionAr?: string;
+  logAr?: string;
+  source?: AgentRuntimeSource;
+}
+
+export interface AgentTaskCompletion {
+  id: string;
+  titleAr: string;
+  completionAr?: string;
+  logAr?: string;
+  source?: AgentRuntimeSource;
+}
+
 export function beginAgentTask(
   agents: Agent[],
   agentId: AgentId,
-  task: { titleAr: string; durationMs: number },
+  task: AgentTaskInput,
 ): Agent[] {
   return agents.map((agent) => {
     if (agent.id !== agentId) return agent;
@@ -474,11 +522,16 @@ export function beginAgentTask(
       status: "working",
       statusNoteAr: `تستلم المهمة الجديدة الآن — ${task.titleAr}`,
       activeTask: {
+        id: task.id,
         titleAr: task.titleAr,
         progress: 6,
         noteAr: "قيد التنفيذ الآن",
         startedAt: Date.now(),
         durationMs: task.durationMs,
+        startAr: task.startAr,
+        completionAr: task.completionAr,
+        logAr: task.logAr,
+        source: task.source,
       },
     };
   });
@@ -487,28 +540,40 @@ export function beginAgentTask(
 export function completeAgentTask(
   agents: Agent[],
   agentId: AgentId,
-  completedTitle: string,
+  task: AgentTaskCompletion,
 ): Agent[] {
   return agents.map((agent) => {
     if (agent.id !== agentId) return agent;
-    const task: CompletedTask = {
-      id: `${agentId}-${Date.now()}`,
-      titleAr: completedTitle,
+    const completed: CompletedTask = {
+      id: task.id,
+      titleAr: task.titleAr,
       timeAr: "الآن",
       outcome: "done",
+      completedAt: Date.now(),
+      logAr: task.logAr ?? agent.activeTask?.logAr,
+      source: task.source ?? agent.activeTask?.source,
+    };
+    const active = agent.activeTask ?? {
+      titleAr: task.titleAr,
+      progress: 100,
+      noteAr: "اكتملت الآن",
     };
     return {
       ...agent,
       status: "done",
       statusNoteAr: "أنجزت المهمة وحدّثت سجل الفريق.",
-      activeTask: agent.activeTask
-        ? { ...agent.activeTask, progress: 100, noteAr: "اكتملت الآن" }
-        : {
-            titleAr: completedTitle,
-            progress: 100,
-            noteAr: "اكتملت الآن",
-          },
-      completedTasks: [task, ...agent.completedTasks].slice(0, 5),
+      activeTask: {
+        ...active,
+        progress: 100,
+        noteAr: "اكتملت الآن",
+        completionAr: task.completionAr ?? active.completionAr,
+        logAr: task.logAr ?? active.logAr,
+        source: task.source ?? active.source,
+      },
+      completedTasks: [
+        completed,
+        ...agent.completedTasks.filter((entry) => entry.id !== completed.id),
+      ].slice(0, 5),
     };
   });
 }

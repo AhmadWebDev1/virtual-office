@@ -14,6 +14,7 @@ import {
   type Agent,
   type AgentId,
   type AgentStatus,
+  type AgentTaskCompletion,
   type QuickAction,
   type RoomId,
   type ThemeMode,
@@ -23,6 +24,7 @@ import type {
   AgentCommandResponse,
   CommandTarget,
 } from "@/lib/agent-contracts";
+import { clearOfficeState, loadOfficeAgents, saveOfficeAgents } from "@/lib/office-storage";
 import AgentModal from "@/components/agent-modal";
 import CommandBar, { type CommandReceipt } from "@/components/command-bar";
 import OfficeStage, {
@@ -36,12 +38,17 @@ import {
   MoonIcon,
   PaletteIcon,
   PixelLogo,
+  ResetIcon,
   SunIcon,
   WifiIcon,
 } from "@/components/icons";
 
 interface VirtualOfficeProps {
   initialAgents: Agent[];
+}
+
+interface CompletionAnnouncement extends AgentTaskCompletion {
+  completionAr: string;
 }
 
 const ROOM_ICONS = {
@@ -61,6 +68,7 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
   const [speeches, setSpeeches] = useState<Partial<Record<AgentId, AgentSpeech>>>({});
   const [receipt, setReceipt] = useState<CommandReceipt | undefined>();
   const [notice, setNotice] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const stageRef = useRef<OfficeStageHandle>(null);
   const speechTimers = useRef(new Map<AgentId, ReturnType<typeof setTimeout>>());
   const completionTimers = useRef(new Map<AgentId, ReturnType<typeof setTimeout>>());
@@ -68,6 +76,8 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
   const nextReceiptId = useRef(1);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  // Bumped on reset so a command response that lands later cannot restore old state.
+  const resetEpoch = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -110,6 +120,79 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
     speechTimers.current.set(agentId, timer);
   }, []);
 
+  const announceCompletion = useCallback(
+    (agentId: AgentId, task: CompletionAnnouncement, receiptId?: number) => {
+      setAgents((current) => completeAgentTask(current, agentId, task));
+      showSpeech(agentId, task.completionAr, 7000);
+      if (receiptId === undefined) return;
+      setReceipt((current) =>
+        current && current.id === receiptId
+          ? { ...current, text: task.completionAr, status: "done" }
+          : current,
+      );
+    },
+    [showSpeech],
+  );
+
+  useEffect(() => {
+    // Deferred one tick so the server-rendered markup paints before local state
+    // replaces it, matching how the saved theme is applied.
+    const timer = window.setTimeout(() => {
+      const restored = loadOfficeAgents(initialAgents);
+      if (restored) {
+        setAgents(restored);
+        const now = Date.now();
+        for (const agent of restored) {
+          const task = agent.activeTask;
+          if (agent.status !== "working" || !task?.startedAt || !task.durationMs) continue;
+          if (task.startedAt + task.durationMs > now && task.startAr) {
+            showSpeech(agent.id, task.startAr, 5000);
+          }
+        }
+      }
+      setHydrated(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [initialAgents, showSpeech]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveOfficeAgents(agents);
+  }, [agents, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    for (const agent of agents) {
+      const task = agent.activeTask;
+      if (agent.status !== "working" || !task?.startedAt || !task.durationMs) continue;
+      if (completionTimers.current.has(agent.id)) continue;
+
+      const taskId = task.id ?? `task-${agent.id}-${task.startedAt}`;
+      const remaining = task.startedAt + task.durationMs - Date.now();
+      const finish = () => {
+        if (!mountedRef.current) return;
+        announceCompletion(agent.id, {
+          id: taskId,
+          titleAr: task.titleAr,
+          completionAr: task.completionAr ?? "تم ✅ أنجزت المهمة.",
+          logAr: task.logAr,
+          source: task.source,
+        });
+        completionTimers.current.delete(agent.id);
+      };
+
+      if (remaining <= 0) {
+        finish();
+        continue;
+      }
+
+      const timer = setTimeout(finish, remaining);
+      completionTimers.current.set(agent.id, timer);
+    }
+  }, [agents, hydrated, announceCompletion]);
+
   const showNotice = useCallback((message: string) => {
     setNotice(message);
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
@@ -132,9 +215,32 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
 
   const closeModal = useCallback(() => setSelectedAgentId(null), []);
 
+  const resetOffice = useCallback(() => {
+    const confirmed = window.confirm(
+      "إعادة ضبط المكتب ستحذف المهام والسجلات المحفوظة محلياً. هل تريد المتابعة؟",
+    );
+    if (!confirmed) return;
+
+    resetEpoch.current += 1;
+    completionTimers.current.forEach((timer) => clearTimeout(timer));
+    completionTimers.current.clear();
+    speechTimers.current.forEach((timer) => clearTimeout(timer));
+    speechTimers.current.clear();
+    clearOfficeState();
+
+    setAgents(cloneAgents(initialAgents));
+    setSpeeches({});
+    setReceipt(undefined);
+    setSelectedAgentId(null);
+    setFilter("all");
+    setTarget("auto");
+    showNotice("تمت إعادة ضبط المكتب. كل الوكلاء بدأوا من جديد.");
+  }, [initialAgents, showNotice]);
+
   const runCommand = useCallback(
     async (commandTarget: CommandTarget, command: string) => {
       if (sending) return;
+      const epoch = resetEpoch.current;
       setSending(true);
       setNotice(null);
       try {
@@ -144,6 +250,7 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
           body: JSON.stringify({ target: commandTarget, command }),
         });
         const payload = (await response.json()) as AgentCommandResponse | AgentCommandError;
+        if (resetEpoch.current !== epoch) return;
         if (!response.ok || !payload.ok) {
           throw new Error("error" in payload ? payload.error : "تعذّر تنفيذ الأمر.");
         }
@@ -157,8 +264,13 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
 
         setAgents((current) =>
           beginAgentTask(current, commandResult.agentId, {
+            id: commandResult.task.id,
             titleAr: commandResult.task.titleAr,
             durationMs: commandResult.task.durationMs,
+            startAr: commandResult.messages.startAr,
+            completionAr: commandResult.messages.completionAr,
+            logAr: commandResult.messages.logAr,
+            source: commandResult.source,
           }),
         );
 
@@ -190,18 +302,16 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
 
         const timer = setTimeout(() => {
           if (!mountedRef.current) return;
-          setAgents((current) =>
-            completeAgentTask(current, commandResult.agentId, commandResult.task.titleAr),
-          );
-          showSpeech(commandResult.agentId, commandResult.messages.completionAr, 7000);
-          setReceipt((current) =>
-            current && current.id === pendingReceipt.id
-              ? {
-                  ...current,
-                  text: commandResult.messages.completionAr,
-                  status: "done",
-                }
-              : current,
+          announceCompletion(
+            commandResult.agentId,
+            {
+              id: commandResult.task.id,
+              titleAr: commandResult.task.titleAr,
+              completionAr: commandResult.messages.completionAr,
+              logAr: commandResult.messages.logAr,
+              source: commandResult.source,
+            },
+            pendingReceipt.id,
           );
           completionTimers.current.delete(commandResult.agentId);
         }, commandResult.task.durationMs);
@@ -210,6 +320,7 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
         // Make the assigned agent easy to find in a busy room.
         setFilter("all");
       } catch (error) {
+        if (resetEpoch.current !== epoch) return;
         const message =
           error instanceof Error && error.message !== "Failed to fetch"
             ? error.message
@@ -228,7 +339,7 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
         if (mountedRef.current) setSending(false);
       }
     },
-    [sending, showNotice, showSpeech],
+    [sending, announceCompletion, showNotice, showSpeech],
   );
 
   const runQuickAction = useCallback(
@@ -295,41 +406,53 @@ export default function VirtualOffice({ initialAgents }: VirtualOfficeProps) {
             </span>
           </div>
 
-          <button
-            type="button"
-            className="theme-switch"
-            onClick={() => applyTheme(theme === "day" ? "night" : "day")}
-            aria-label={theme === "day" ? "التبديل إلى وضع الليل" : "التبديل إلى وضع النهار"}
-            title={theme === "day" ? "تشغيل الإضاءة الليلية" : "تشغيل إضاءة النهار"}
-          >
-            <span className="theme-switch-sky" data-mode={theme} aria-hidden="true">
-              {theme === "day" ? (
-                <>
-                  <SunIcon width={16} height={16} />
-                  <span className="theme-cloud theme-cloud-one" />
-                  <span className="theme-cloud theme-cloud-two" />
-                </>
-              ) : (
-                <>
-                  <MoonIcon width={16} height={16} />
-                  <span className="theme-star theme-star-one">+</span>
-                  <span className="theme-star theme-star-two">+</span>
-                </>
-              )}
-            </span>
-            <span className="theme-switch-copy">
-              <small>الإضاءة</small>
-              <strong>{theme === "day" ? "وضع الليل" : "وضع النهار"}</strong>
-            </span>
-            <span
-              className="theme-switch-track"
-              data-mode={theme}
-              aria-hidden="true"
-              role="presentation"
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="office-reset"
+              onClick={resetOffice}
+              aria-label="إعادة ضبط المكتب"
+              title="حذف المهام والسجلات المحفوظة وإعادة الوكلاء إلى البداية"
             >
-              <span className="theme-switch-thumb" />
-            </span>
-          </button>
+              <ResetIcon width={14} height={14} />
+              <span>إعادة ضبط المكتب</span>
+            </button>
+            <button
+              type="button"
+              className="theme-switch"
+              onClick={() => applyTheme(theme === "day" ? "night" : "day")}
+              aria-label={theme === "day" ? "التبديل إلى وضع الليل" : "التبديل إلى وضع النهار"}
+              title={theme === "day" ? "تشغيل الإضاءة الليلية" : "تشغيل إضاءة النهار"}
+            >
+              <span className="theme-switch-sky" data-mode={theme} aria-hidden="true">
+                {theme === "day" ? (
+                  <>
+                    <SunIcon width={16} height={16} />
+                    <span className="theme-cloud theme-cloud-one" />
+                    <span className="theme-cloud theme-cloud-two" />
+                  </>
+                ) : (
+                  <>
+                    <MoonIcon width={16} height={16} />
+                    <span className="theme-star theme-star-one">+</span>
+                    <span className="theme-star theme-star-two">+</span>
+                  </>
+                )}
+              </span>
+              <span className="theme-switch-copy">
+                <small>الإضاءة</small>
+                <strong>{theme === "day" ? "وضع الليل" : "وضع النهار"}</strong>
+              </span>
+              <span
+                className="theme-switch-track"
+                data-mode={theme}
+                aria-hidden="true"
+                role="presentation"
+              >
+                <span className="theme-switch-thumb" />
+              </span>
+            </button>
+          </div>
         </header>
 
         <section className="dashboard-toolbar" aria-label="تصفية الوكلاء والتنقل بين الغرف">

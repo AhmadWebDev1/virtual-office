@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { STATUS_META, type Agent, type QuickAction, type Room } from "@/data/agents";
+import {
+  STATUS_META,
+  formatCompletedTimeAr,
+  type Agent,
+  type QuickAction,
+  type Room,
+} from "@/data/agents";
 import AgentPortrait from "@/components/agent-portrait";
 import {
   AlertIcon,
@@ -58,6 +64,7 @@ export default function AgentModal({
   const progress = useLiveProgress(agent);
   const meta = STATUS_META[agent.status];
   const task = agent.activeTask;
+  const latestSource = task?.source ?? agent.completedTasks[0]?.source;
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -249,7 +256,13 @@ export default function AgentModal({
                   <div className="task-card-foot">
                     <span className="task-source">
                       <span className="task-source-led" />
-                      {agent.status === "working" ? "تنفيذ مباشر" : "جاهز للأمر التالي"}
+                      {task.source === "gemini"
+                        ? "مدعوم بـ Gemini"
+                        : task.source === "local-runtime"
+                          ? "احتياط محلي"
+                          : agent.status === "working"
+                            ? "تنفيذ مباشر"
+                            : "جاهز للأمر التالي"}
                     </span>
                     <span>{agent.status === "error" ? "بانتظار إعادة المحاولة" : "تحديث تلقائي"}</span>
                   </div>
@@ -307,22 +320,48 @@ export default function AgentModal({
               </div>
               <ol className="completed-list">
                 {agent.completedTasks.map((completed, index) => (
-                  <li key={completed.id}>
+                  <li key={completed.id} data-source={completed.source}>
                     <span className="completed-marker">
                       <CheckIcon width={11} height={11} />
                     </span>
-                    <span className="completed-title">{completed.titleAr}</span>
-                    <span className="completed-time">{completed.timeAr}</span>
-                    {index === 0 ? <span className="completed-new">جديد</span> : null}
+                    <div className="completed-copy">
+                      <div className="completed-head">
+                        <span className="completed-title">{completed.titleAr}</span>
+                        {completed.source ? (
+                          <span
+                            className="source-badge"
+                            data-source={completed.source}
+                            title={
+                              completed.source === "gemini"
+                                ? "ردّ Gemini"
+                                : "ردّ المحرك المحلي الاحتياطي"
+                            }
+                          >
+                            {completed.source === "gemini" ? "Gemini" : "محلي"}
+                          </span>
+                        ) : null}
+                        <span className="completed-time">
+                          {formatCompletedTimeAr(completed)}
+                        </span>
+                        {index === 0 ? <span className="completed-new">جديد</span> : null}
+                      </div>
+                      {completed.logAr ? (
+                        <p className="completed-log">{completed.logAr}</p>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ol>
             </section>
 
             <footer className="agent-modal-footer">
-              <span className="runtime-note">
+              <span className="runtime-note" data-source={latestSource ?? "local-runtime"}>
                 <span className="runtime-dot" />
-                محرك محلي · جاهز للربط مع Gmail و Google Sheets
+                {latestSource === "gemini"
+                  ? "مدعوم بـ Gemini · الردّ الكامل محفوظ في سجل المهام"
+                  : latestSource === "local-runtime"
+                    ? "محرك محلي احتياطي · جاهز للربط مع Gmail و Google Sheets"
+                    : "محرك الوكلاء · جاهز للربط مع Gmail و Google Sheets"}
               </span>
               <span className="agent-modal-id">AGENT / {agent.id.toUpperCase()}</span>
             </footer>

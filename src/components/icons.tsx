@@ -74,6 +74,15 @@ export function FitIcon(props: IconProps) {
   );
 }
 
+export function ResetIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 11a8 8 0 1 1 2.3 5.7" />
+      <path d="M4 4v7h7" />
+    </Icon>
+  );
+}
+
 export function SendIcon(props: IconProps) {
   return (
     <Icon {...props}>

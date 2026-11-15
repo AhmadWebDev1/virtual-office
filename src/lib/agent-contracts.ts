@@ -1,8 +1,6 @@
-import type { AgentId } from "@/data/agents";
+import type { AgentId, AgentRuntimeSource } from "@/data/agents";
 
 export type CommandTarget = AgentId | "auto";
-
-export type AgentRuntimeSource = "gemini" | "local-runtime";
 
 export interface AgentCommandRequest {
   target: CommandTarget;

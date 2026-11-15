@@ -3,6 +3,7 @@ import {
   Type,
   type Content,
   type GenerateContentConfig,
+  type GenerateContentResponse,
   type Schema,
 } from "@google/genai";
 import type { AgentId } from "@/data/agents";
@@ -15,7 +16,9 @@ import type {
 } from "@/lib/agent-contracts";
 import { AGENT_TOOLS, getToolConfig } from "@/lib/agent-tools";
 
-const GEMINI_MODEL = "gemini-3.5-flash-lite";
+// Primary model uses the larger free daily quota; the second model takes over
+// when the primary is unavailable or rate-limited.
+const GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-2.5-flash"] as const;
 const GEMINI_TIMEOUT_MS = 20_000;
 const MAX_TOOL_STEPS = 3;
 
@@ -297,9 +300,36 @@ function getGeminiClient(): GoogleGenAI {
   return geminiClient;
 }
 
+function isModelFallbackError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = "status" in error ? error.status : undefined;
+  if (status === 404 || status === 429 || status === 503) return true;
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return /not found|not supported|unsupported|resource_exhausted|quota|unavailable/.test(message);
+}
+
+async function generateWithModelFallback(
+  ai: GoogleGenAI,
+  params: { contents: Content[]; config: GenerateContentConfig },
+): Promise<GenerateContentResponse> {
+  let lastError: unknown;
+
+  for (const [index, model] of GEMINI_MODELS.entries()) {
+    try {
+      return await ai.models.generateContent({ model, ...params });
+    } catch (error) {
+      lastError = error;
+      const nextModel = GEMINI_MODELS[index + 1];
+      if (!nextModel || !isModelFallbackError(error)) throw error;
+      console.warn(`[agent-runtime] ${model} unavailable; retrying with ${nextModel}.`);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("No Gemini model is available.");
+}
+
 async function routeWithGemini(ai: GoogleGenAI, command: string): Promise<AgentId> {
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
+  const response = await generateWithModelFallback(ai, {
     contents: [{ role: "user", parts: [{ text: `<user_command>\n${command}\n</user_command>` }] }],
     config: {
       systemInstruction: ROUTER_INSTRUCTION,
@@ -328,11 +358,7 @@ async function generateText(
   const toolSet = AGENT_TOOLS[agentId];
 
   for (let step = 0; step < MAX_TOOL_STEPS; step += 1) {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents,
-      config,
-    });
+    const response = await generateWithModelFallback(ai, { contents, config });
     const functionCalls = response.functionCalls ?? [];
 
     if (functionCalls.length === 0) {
