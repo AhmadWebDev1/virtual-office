@@ -1,16 +1,25 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Agent } from "@/data/agents";
+import type { Agent, FurnitureStyle } from "@/data/agents";
 import { drawAvatarPortrait } from "@/components/office/pixel-sprites";
 
 interface AgentPortraitProps {
   agent: Agent;
+  furnitureStyle?: FurnitureStyle;
   size?: number;
   className?: string;
 }
 
-export default function AgentPortrait({ agent, size = 104, className }: AgentPortraitProps) {
+const PORTRAIT_SCALE = 2;
+const PORTRAIT_LOGICAL = 64;
+
+export default function AgentPortrait({
+  agent,
+  furnitureStyle,
+  size = 104,
+  className,
+}: AgentPortraitProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -19,31 +28,38 @@ export default function AgentPortrait({ agent, size = 104, className }: AgentPor
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = 64;
-    canvas.height = 64;
+    canvas.width = PORTRAIT_LOGICAL * PORTRAIT_SCALE;
+    canvas.height = PORTRAIT_LOGICAL * PORTRAIT_SCALE;
+    ctx.setTransform(PORTRAIT_SCALE, 0, 0, PORTRAIT_SCALE, 0, 0);
     ctx.imageSmoothingEnabled = false;
 
     let frame = 0;
     const startedAt = performance.now();
     let last = 0;
 
+    const renderFrame = (time: number) => {
+      ctx.setTransform(PORTRAIT_SCALE, 0, 0, PORTRAIT_SCALE, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      drawAvatarPortrait(ctx, agent, time, PORTRAIT_LOGICAL, furnitureStyle);
+    };
+
     const draw = (now: number) => {
       frame = requestAnimationFrame(draw);
       if (now - last < 80 || document.hidden) return;
       last = now;
-      drawAvatarPortrait(ctx, agent, now - startedAt, 64);
+      renderFrame(now - startedAt);
     };
 
-    drawAvatarPortrait(ctx, agent, 0, 64);
+    renderFrame(0);
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [agent]);
+  }, [agent, furnitureStyle]);
 
   return (
     <canvas
       ref={canvasRef}
-      width={64}
-      height={64}
+      width={PORTRAIT_LOGICAL * PORTRAIT_SCALE}
+      height={PORTRAIT_LOGICAL * PORTRAIT_SCALE}
       className={className}
       style={{
         width: size,

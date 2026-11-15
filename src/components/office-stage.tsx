@@ -12,17 +12,20 @@ import {
   type SVGProps,
 } from "react";
 import {
-  ROOMS,
   STATUS_META,
-  WORLD,
+  getWorldDimensions,
   type Agent,
   type AgentId,
   type AgentStatus,
+  type FurnitureStyle,
+  type Room,
   type RoomId,
   type ThemeMode,
+  type WorldDimensions,
 } from "@/data/agents";
 import {
   ChartIcon,
+  CodeIcon,
   CrownIcon,
   FitIcon,
   MailIcon,
@@ -43,6 +46,7 @@ export interface AgentSpeech {
 
 export interface OfficeStageProps {
   agents: Agent[];
+  rooms: Room[];
   filter: AgentStatus | "all";
   theme: ThemeMode;
   speeches: Partial<Record<AgentId, AgentSpeech>>;
@@ -81,9 +85,9 @@ const DEFAULT_VIEWPORT: Viewport = {
   maxScale: 3,
 };
 
-const ROOM_ICONS: Record<RoomId, ComponentType<SVGProps<SVGSVGElement>>> = {
-  gm: CrownIcon,
-  email: MailIcon,
+const STYLE_ICONS: Record<FurnitureStyle, ComponentType<SVGProps<SVGSVGElement>>> = {
+  admin: CrownIcon,
+  tech: CodeIcon,
   finance: ChartIcon,
   creative: PaletteIcon,
 };
@@ -92,28 +96,28 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function fitCameraFor(viewport: Viewport): Camera {
+function fitCameraFor(viewport: Viewport, world: WorldDimensions): Camera {
   const scale = viewport.fit;
   return {
-    x: (WORLD.width - viewport.width / scale) / 2,
-    y: (WORLD.height - viewport.height / scale) / 2,
+    x: (world.width - viewport.width / scale) / 2,
+    y: (world.height - viewport.height / scale) / 2,
     scale,
   };
 }
 
-function clampCamera(next: Camera, viewport: Viewport): Camera {
+function clampCamera(next: Camera, viewport: Viewport, world: WorldDimensions): Camera {
   const scale = clamp(next.scale, viewport.minScale, viewport.maxScale);
   const viewWidth = viewport.width / scale;
   const viewHeight = viewport.height / scale;
 
   const x =
-    viewWidth >= WORLD.width
-      ? (WORLD.width - viewWidth) / 2
-      : clamp(next.x, 0, WORLD.width - viewWidth);
+    viewWidth >= world.width
+      ? (world.width - viewWidth) / 2
+      : clamp(next.x, 0, world.width - viewWidth);
   const y =
-    viewHeight >= WORLD.height
-      ? (WORLD.height - viewHeight) / 2
-      : clamp(next.y, 0, WORLD.height - viewHeight);
+    viewHeight >= world.height
+      ? (world.height - viewHeight) / 2
+      : clamp(next.y, 0, world.height - viewHeight);
 
   return { x, y, scale };
 }
@@ -123,17 +127,19 @@ function easeOutCubic(value: number) {
 }
 
 const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function OfficeStage(
-  { agents, filter, theme, speeches, onOpenAgent, onOpenRoom },
+  { agents, rooms, filter, theme, speeches, onOpenAgent, onOpenRoom },
   ref,
 ) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cameraRef = useRef<Camera>({ x: 0, y: 0, scale: 1 });
   const viewportRef = useRef<Viewport>(DEFAULT_VIEWPORT);
+  const worldRef = useRef<WorldDimensions>(getWorldDimensions(rooms));
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, scale: 1 });
   const [ready, setReady] = useState(false);
   const initialisedRef = useRef(false);
   const animationRef = useRef<number | null>(null);
+  const resizeHandlerRef = useRef<((forceFit?: boolean) => void) | null>(null);
   const pointersRef = useRef(
     new Map<number, { x: number; y: number; startX: number; startY: number }>(),
   );
@@ -154,14 +160,22 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
     suppressClick: boolean;
   } | null>(null);
   const suppressClickRef = useRef(false);
-  const renderDataRef = useRef({ agents, filter, theme });
+  const renderDataRef = useRef({ agents, rooms, filter, theme });
   const callbacksRef = useRef({ onOpenAgent, onOpenRoom });
   const staticDirtyRef = useRef(true);
+  const prevRoomCountRef = useRef(rooms.length);
+
+  const world = getWorldDimensions(rooms);
+  worldRef.current = world;
 
   useEffect(() => {
-    renderDataRef.current = { agents, filter, theme };
-    if (theme) staticDirtyRef.current = true;
-  }, [agents, filter, theme]);
+    renderDataRef.current = { agents, rooms, filter, theme };
+    staticDirtyRef.current = true;
+    if (prevRoomCountRef.current !== rooms.length) {
+      prevRoomCountRef.current = rooms.length;
+      resizeHandlerRef.current?.(true);
+    }
+  }, [agents, rooms, filter, theme]);
 
   useEffect(() => {
     callbacksRef.current = { onOpenAgent, onOpenRoom };
@@ -184,7 +198,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
       cancelAnimation();
       const viewport = viewportRef.current;
       const from = cameraRef.current;
-      const to = clampCamera(target, viewport);
+      const to = clampCamera(target, viewport, worldRef.current);
       const startedAt = performance.now();
 
       const tick = (now: number) => {
@@ -208,12 +222,12 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
 
   const fitAll = useCallback(() => {
     const viewport = viewportRef.current;
-    animateCameraTo(fitCameraFor(viewport));
+    animateCameraTo(fitCameraFor(viewport, worldRef.current));
   }, [animateCameraTo]);
 
   const focusRoom = useCallback(
     (roomId: RoomId) => {
-      const room = ROOMS.find((entry) => entry.id === roomId);
+      const room = renderDataRef.current.rooms.find((entry) => entry.id === roomId);
       if (!room) return;
       const viewport = viewportRef.current;
       const targetScale = clamp(
@@ -270,7 +284,6 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
     [fitAll, focusRoom, zoomIn, zoomOut],
   );
 
-  // Set up the pixel renderer, resize observer, wheel and touch gestures.
   useEffect(() => {
     const stage = stageRef.current;
     const canvas = canvasRef.current;
@@ -279,14 +292,16 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const RENDER_SCALE = 2;
     const staticLayer = document.createElement("canvas");
-    staticLayer.width = WORLD.width;
-    staticLayer.height = WORLD.height;
-    const staticCtx = staticLayer.getContext("2d");
-
     const composite = document.createElement("canvas");
-    composite.width = WORLD.width;
-    composite.height = WORLD.height;
+    const initialWorld = worldRef.current;
+    staticLayer.width = initialWorld.width * RENDER_SCALE;
+    staticLayer.height = initialWorld.height * RENDER_SCALE;
+    composite.width = initialWorld.width * RENDER_SCALE;
+    composite.height = initialWorld.height * RENDER_SCALE;
+
+    const staticCtx = staticLayer.getContext("2d");
     const compositeCtx = composite.getContext("2d");
 
     if (!staticCtx || !compositeCtx) return;
@@ -295,7 +310,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
     let lastPaint = 0;
     let lastWheelAt = 0;
 
-    const resize = () => {
+    const resize = (forceFit = false) => {
       const rect = stage.getBoundingClientRect();
       const width = Math.max(1, rect.width);
       const height = Math.max(1, rect.height);
@@ -303,8 +318,9 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
 
+      const liveWorld = worldRef.current;
       const previousFit = viewportRef.current.fit;
-      const fit = Math.min(width / WORLD.width, height / WORLD.height) * 0.96;
+      const fit = Math.min(width / liveWorld.width, height / liveWorld.height) * 0.96;
       const viewport: Viewport = {
         width,
         height,
@@ -314,6 +330,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
         maxScale: Math.max(2.6, fit * 3.4),
       };
       const wasFitted =
+        forceFit ||
         !initialisedRef.current ||
         (previousFit > 0 && Math.abs(cameraRef.current.scale / previousFit - 0.96) < 0.001) ||
         Math.abs(cameraRef.current.scale / previousFit - 1) < 0.04;
@@ -321,11 +338,11 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
       viewportRef.current = viewport;
 
       if (wasFitted) {
-        const fitted = fitCameraFor(viewport);
+        const fitted = fitCameraFor(viewport, liveWorld);
         cameraRef.current = fitted;
         setCamera(fitted);
       } else {
-        const clamped = clampCamera(cameraRef.current, viewport);
+        const clamped = clampCamera(cameraRef.current, viewport, liveWorld);
         cameraRef.current = clamped;
         setCamera(clamped);
       }
@@ -334,25 +351,47 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
       setReady(true);
     };
 
+    resizeHandlerRef.current = resize;
+
     const render = (now: number) => {
       frame = requestAnimationFrame(render);
       if (document.hidden) return;
       if (now - lastPaint < 33) return;
       lastPaint = now;
 
-      const { agents: liveAgents, filter: liveFilter, theme: liveTheme } =
-        renderDataRef.current;
+      const {
+        agents: liveAgents,
+        rooms: liveRooms,
+        filter: liveFilter,
+        theme: liveTheme,
+      } = renderDataRef.current;
+      const liveWorld = getWorldDimensions(liveRooms);
+      worldRef.current = liveWorld;
+
+      const targetW = liveWorld.width * RENDER_SCALE;
+      const targetH = liveWorld.height * RENDER_SCALE;
+      if (staticLayer.width !== targetW || staticLayer.height !== targetH) {
+        staticLayer.width = targetW;
+        staticLayer.height = targetH;
+        composite.width = targetW;
+        composite.height = targetH;
+        staticDirtyRef.current = true;
+      }
 
       if (staticDirtyRef.current) {
-        paintStaticOffice(staticCtx, liveTheme);
+        staticCtx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+        paintStaticOffice(staticCtx, liveTheme, liveRooms);
         staticDirtyRef.current = false;
       }
 
-      compositeCtx.clearRect(0, 0, WORLD.width, WORLD.height);
+      compositeCtx.setTransform(1, 0, 0, 1, 0, 0);
+      compositeCtx.clearRect(0, 0, composite.width, composite.height);
       compositeCtx.imageSmoothingEnabled = false;
       compositeCtx.drawImage(staticLayer, 0, 0);
+      compositeCtx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
       paintDynamicOffice(compositeCtx, {
         agents: liveAgents,
+        rooms: liveRooms,
         filter: liveFilter,
         theme: liveTheme,
         time: now,
@@ -363,7 +402,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
-      ctx.fillStyle = liveTheme === "day" ? "#c6b593" : "#0d1717";
+      ctx.fillStyle = liveTheme === "day" ? "#c2b08c" : "#0b1516";
       ctx.fillRect(0, 0, viewport.width, viewport.height);
       ctx.imageSmoothingEnabled = false;
       ctx.save();
@@ -372,10 +411,9 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
         Math.round(-current.y * current.scale),
       );
       ctx.scale(current.scale, current.scale);
-      ctx.drawImage(composite, 0, 0);
+      ctx.drawImage(composite, 0, 0, liveWorld.width, liveWorld.height);
       ctx.restore();
 
-      // A faint vignette keeps the scene framed on large screens.
       const frameGradient = ctx.createLinearGradient(0, 0, 0, viewport.height);
       frameGradient.addColorStop(0, "rgba(9, 14, 13, 0.08)");
       frameGradient.addColorStop(0.25, "rgba(9, 14, 13, 0)");
@@ -410,17 +448,19 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
             scale: nextScale,
           },
           viewport,
+          worldRef.current,
         ),
       );
     };
 
-    const observer = new ResizeObserver(resize);
+    const observer = new ResizeObserver(() => resize(false));
     observer.observe(stage);
-    resize();
+    resize(false);
     stage.addEventListener("wheel", onWheel, { passive: false });
     frame = requestAnimationFrame(render);
 
     return () => {
+      resizeHandlerRef.current = null;
       observer.disconnect();
       stage.removeEventListener("wheel", onWheel);
       cancelAnimationFrame(frame);
@@ -500,6 +540,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
             scale: nextScale,
           },
           viewport,
+          worldRef.current,
         ),
       );
       return;
@@ -518,6 +559,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
         scale: drag.startCamera.scale,
       },
       viewport,
+      worldRef.current,
     );
     commitCamera(next);
   };
@@ -554,7 +596,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
         if (clickedAgent) {
           callbacksRef.current.onOpenAgent(clickedAgent.id);
         } else {
-          const room = roomAtPoint(worldX, worldY);
+          const room = roomAtPoint(worldX, worldY, rooms);
           if (room) callbacksRef.current.onOpenRoom(room.id);
         }
       }
@@ -562,7 +604,6 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
       pinchRef.current = null;
       suppressClickRef.current = false;
     } else if (pointersRef.current.size === 1) {
-      // Keep remaining finger steady after a pinch ends.
       const remaining = [...pointersRef.current.values()][0];
       dragRef.current = {
         startCamera: cameraRef.current,
@@ -590,7 +631,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
       <canvas
         ref={canvasRef}
         className="office-canvas"
-        aria-label="مخطط ثلاثي الأبعاد علوي لمكتب افتراضي من طابق واحد يضم غرفة المدير العام، الإيميلات، المالية، والإبداع والتسويق. يمكنك سحب الخريطة وتكبيرها، والنقر على وكيل أو غرفة لعرض التفاصيل."
+        aria-label="خريطة المقر الافتراضي القابل للتوسع. يمكنك سحب الخريطة وتكبيرها، والنقر على أي وكيل أو غرفة لعرض التفاصيل أو تعديل المهارات والقواعد."
         role="img"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -600,14 +641,18 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
 
       <div className="stage-meta" aria-hidden="true">
         <span className="stage-meta-dot" />
-        <span>الطابق الأرضي</span>
+        <span>{rooms.length} {rooms.length === 1 ? "غرفة" : rooms.length === 2 ? "غرفتان" : "غرف"}</span>
         <span className="stage-meta-sep">·</span>
-        <span>{agents.length} وكلاء</span>
+        <span>{agents.length} {agents.length === 1 ? "وكيل" : agents.length === 2 ? "وكيلان" : "وكلاء"}</span>
       </div>
 
       <div className="room-sign-layer">
-        {ROOMS.map((room) => {
-          const Icon = ROOM_ICONS[room.id];
+        {rooms.map((room, index) => {
+          const roomAgent = agents.find((a) => room.agentIds.includes(a.id));
+          const Icon =
+            roomAgent?.skills.includes("gmail-workspace")
+              ? MailIcon
+              : STYLE_ICONS[room.furnitureStyle];
           const left = (room.rect.x + room.rect.w / 2 - camera.x) * camera.scale;
           const top = (room.rect.y - 10 - camera.y) * camera.scale;
           if (left < -200 || left > viewportRef.current.width + 200) return null;
@@ -632,7 +677,7 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
               </span>
               <span className="room-sign-name">{room.nameAr}</span>
               <span className="room-sign-code" aria-hidden="true">
-                {room.id === "gm" ? "01" : room.id === "creative" ? "02" : room.id === "email" ? "03" : "04"}
+                {String(index + 1).padStart(2, "0")}
               </span>
             </button>
           );
@@ -647,8 +692,8 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
           const meta = STATUS_META[agent.status];
           const dimmed = filter !== "all" && agent.status !== filter;
           const firstName = agent.nameAr.split(" ")[0];
-          // Agents near the bottom wall need their bubble below the chip so it never covers the room sign.
-          const speechBelow = agent.roomId === "email" || agent.roomId === "finance";
+          const room = rooms.find((r) => r.id === agent.roomId);
+          const speechBelow = room ? room.rect.y > 120 : false;
           if (left < -160 || left > viewportRef.current.width + 160) return null;
           return (
             <div

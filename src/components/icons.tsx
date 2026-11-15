@@ -268,6 +268,41 @@ export function BuildingIcon(props: IconProps) {
   );
 }
 
+export function CodeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12" />
+    </Icon>
+  );
+}
+
+export function SlidersIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 7h16M4 17h16" />
+      <rect x="7" y="4.5" width="4" height="5" />
+      <rect x="13" y="14.5" width="4" height="5" />
+    </Icon>
+  );
+}
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Icon>
+  );
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 7h16M9 7V4h6v3M7 7v13h10V7" />
+      <path d="M10 11v5M14 11v5" />
+    </Icon>
+  );
+}
+
 export function PixelLogo(props: IconProps) {
   return (
     <svg viewBox="0 0 32 32" shapeRendering="crispEdges" aria-hidden="true" {...props}>

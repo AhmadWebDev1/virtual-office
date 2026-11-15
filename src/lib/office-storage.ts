@@ -1,30 +1,32 @@
 import {
   AGENT_STATUSES,
+  FURNITURE_STYLES,
   cloneAgents,
+  cloneRooms,
+  computeRoomPlacement,
   type ActiveTask,
   type Agent,
+  type AgentAvatar,
   type AgentRuntimeSource,
   type AgentStatus,
   type CompletedTask,
+  type FurnitureStyle,
+  type QuickAction,
+  type Room,
 } from "@/data/agents";
+import type { CustomSkillDefinition } from "@/data/skills";
 
-const STORAGE_KEY = "virtual-office-state-v1";
-const VERSION = 1;
+const STORAGE_KEY = "virtual-office-state-v2";
+const LEGACY_STORAGE_KEY = "virtual-office-state-v1";
+const VERSION = 2;
 const MAX_COMPLETED_TASKS = 5;
 const MAX_LOG_LENGTH = 800;
-
-interface PersistedAgentState {
-  id: string;
-  status: AgentStatus;
-  statusNoteAr: string;
-  activeTask: ActiveTask | null;
-  completedTasks: CompletedTask[];
-}
 
 interface PersistedOfficeState {
   version: typeof VERSION;
   savedAt: number;
-  agents: PersistedAgentState[];
+  agents: Agent[];
+  rooms: Room[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -33,6 +35,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isStatus(value: unknown): value is AgentStatus {
   return typeof value === "string" && (AGENT_STATUSES as readonly string[]).includes(value);
+}
+
+function isFurnitureStyle(value: unknown): value is FurnitureStyle {
+  return typeof value === "string" && (FURNITURE_STYLES as readonly string[]).includes(value);
 }
 
 function isSource(value: unknown): value is AgentRuntimeSource {
@@ -90,11 +96,78 @@ function parseCompletedTasks(value: unknown): CompletedTask[] {
   return tasks;
 }
 
-/**
- * Restores the dynamic part of the office from localStorage and merges it onto
- * the static agent definitions, so avatars and rooms always come from code.
- */
-export function loadOfficeAgents(initialAgents: Agent[]): Agent[] | null {
+function parseQuickActions(value: unknown): QuickAction[] {
+  if (!Array.isArray(value)) return [];
+  const actions: QuickAction[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    const id = readText(entry.id, 80);
+    const labelAr = readText(entry.labelAr, 80);
+    const command = readText(entry.command, 320);
+    const hintAr = readText(entry.hintAr, 60) ?? "تشغيل";
+    if (!id || !labelAr || !command) continue;
+    actions.push({ id, labelAr, command, hintAr });
+    if (actions.length >= 6) break;
+  }
+  return actions;
+}
+
+function parseCustomSkills(value: unknown): CustomSkillDefinition[] {
+  if (!Array.isArray(value)) return [];
+  const skills: CustomSkillDefinition[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    const id = readText(entry.id, 80);
+    const nameAr = readText(entry.nameAr, 60);
+    const descriptionAr = readText(entry.descriptionAr, 200) ?? "";
+    const promptInstruction = readText(entry.promptInstruction, 1200);
+    if (!id || !nameAr || !promptInstruction) continue;
+    skills.push({
+      id,
+      nameAr,
+      descriptionAr: descriptionAr || promptInstruction.slice(0, 120),
+      promptInstruction,
+      format: entry.format === "json" ? "json" : "markdown",
+    });
+    if (skills.length >= 20) break;
+  }
+  return skills;
+}
+
+function parseAvatar(value: unknown, fallback: AgentAvatar): AgentAvatar {
+  if (!isRecord(value)) return { ...fallback };
+  const style =
+    value.style === "short" ||
+    value.style === "long" ||
+    value.style === "curly" ||
+    value.style === "bun"
+      ? value.style
+      : fallback.style;
+  const accessory =
+    value.accessory === "none" ||
+    value.accessory === "glasses" ||
+    value.accessory === "headset" ||
+    value.accessory === "beanie"
+      ? value.accessory
+      : fallback.accessory;
+  return {
+    skin: readText(value.skin, 24) ?? fallback.skin,
+    skinShadow: readText(value.skinShadow, 24) ?? fallback.skinShadow,
+    hair: readText(value.hair, 24) ?? fallback.hair,
+    hairShadow: readText(value.hairShadow, 24) ?? fallback.hairShadow,
+    shirt: readText(value.shirt, 24) ?? fallback.shirt,
+    shirtShadow: readText(value.shirtShadow, 24) ?? fallback.shirtShadow,
+    accent: readText(value.accent, 24) ?? fallback.accent,
+    style,
+    accessory,
+    beard: typeof value.beard === "boolean" ? value.beard : fallback.beard,
+  };
+}
+
+export function loadOfficeState(
+  initialAgents: Agent[],
+  initialRooms: Room[],
+): { agents: Agent[]; rooms: Room[] } | null {
   if (typeof window === "undefined") return null;
 
   let raw: string | null = null;
@@ -111,58 +184,114 @@ export function loadOfficeAgents(initialAgents: Agent[]): Agent[] | null {
   } catch {
     return null;
   }
-  if (!isRecord(parsed) || parsed.version !== VERSION || !Array.isArray(parsed.agents)) {
+  if (
+    !isRecord(parsed) ||
+    parsed.version !== VERSION ||
+    !Array.isArray(parsed.agents) ||
+    !Array.isArray(parsed.rooms)
+  ) {
     return null;
   }
 
-  const saved = new Map<string, Record<string, unknown>>();
-  for (const entry of parsed.agents) {
-    if (isRecord(entry) && typeof entry.id === "string") saved.set(entry.id, entry);
+  const baseGmAgent = initialAgents[0];
+  const baseGmRoom = initialRooms[0];
+
+  const rooms: Room[] = [];
+  for (const entry of parsed.rooms) {
+    if (!isRecord(entry)) continue;
+    const id = readText(entry.id, 80);
+    const nameAr = readText(entry.nameAr, 100);
+    if (!id || !nameAr) continue;
+    const placement = computeRoomPlacement(rooms.length);
+    const agentIds = Array.isArray(entry.agentIds)
+      ? entry.agentIds.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+      : [];
+    const fallbackRoom = initialRooms.find((r) => r.id === id) ?? baseGmRoom;
+    rooms.push({
+      id,
+      nameAr,
+      shortNameAr: readText(entry.shortNameAr, 40) ?? nameAr.slice(0, 18),
+      descriptionAr: readText(entry.descriptionAr, 240) ?? fallbackRoom.descriptionAr,
+      rect: placement.rect,
+      accent: readText(entry.accent, 24) ?? fallbackRoom.accent,
+      furnitureStyle: isFurnitureStyle(entry.furnitureStyle)
+        ? entry.furnitureStyle
+        : fallbackRoom.furnitureStyle,
+      agentIds,
+    });
   }
-  if (saved.size === 0) return null;
 
-  return cloneAgents(initialAgents).map((agent) => {
-    const state = saved.get(agent.id);
-    if (!state) return agent;
+  if (rooms.length === 0) return null;
 
-    const status = isStatus(state.status) ? state.status : agent.status;
-    const activeTask = parseActiveTask(state.activeTask);
+  const roomById = new Map(rooms.map((room, index) => [room.id, { room, index }]));
+  const agents: Agent[] = [];
 
-    return {
-      ...agent,
+  for (const entry of parsed.agents) {
+    if (!isRecord(entry)) continue;
+    const id = readText(entry.id, 80);
+    const nameAr = readText(entry.nameAr, 80);
+    const roleAr = readText(entry.roleAr, 80);
+    const roomId = readText(entry.roomId, 80);
+    if (!id || !nameAr || !roleAr || !roomId || !roomById.has(roomId)) continue;
+
+    const baseline = initialAgents.find((a) => a.id === id) ?? baseGmAgent;
+    const roomMeta = roomById.get(roomId)!;
+    const placement = computeRoomPlacement(roomMeta.index);
+    const status = isStatus(entry.status) ? entry.status : "idle";
+    const activeTask = parseActiveTask(entry.activeTask);
+    const parsedActions = parseQuickActions(entry.quickActions);
+
+    agents.push({
+      id,
+      nameAr,
+      roleAr,
+      roleEn: readText(entry.roleEn, 80) ?? baseline.roleEn,
+      roomId,
+      stationAr: readText(entry.stationAr, 80) ?? `محطة ${roleAr}`,
       status: status === "working" && !activeTask ? "idle" : status,
-      statusNoteAr: readText(state.statusNoteAr, 240) ?? agent.statusNoteAr,
+      statusNoteAr: readText(entry.statusNoteAr, 240) ?? baseline.statusNoteAr,
       activeTask,
-      completedTasks: parseCompletedTasks(state.completedTasks),
-    };
-  });
+      completedTasks: parseCompletedTasks(entry.completedTasks),
+      quickActions: parsedActions.length > 0 ? parsedActions : baseline.quickActions.map((a) => ({ ...a })),
+      rules: typeof entry.rules === "string" ? entry.rules.slice(0, 2000) : baseline.rules,
+      skills: Array.isArray(entry.skills)
+        ? entry.skills.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+        : [...baseline.skills],
+      customSkills: parseCustomSkills(entry.customSkills),
+      avatar: parseAvatar(entry.avatar, baseline.avatar),
+      position: placement.agentPosition,
+    });
+  }
+
+  if (agents.length === 0) return null;
+
+  return {
+    agents: cloneAgents(agents),
+    rooms: cloneRooms(rooms),
+  };
 }
 
-export function saveOfficeAgents(agents: Agent[]): void {
+export function saveOfficeState(agents: Agent[], rooms: Room[]): void {
   if (typeof window === "undefined") return;
 
   const payload: PersistedOfficeState = {
     version: VERSION,
     savedAt: Date.now(),
-    agents: agents.map(({ id, status, statusNoteAr, activeTask, completedTasks }) => ({
-      id,
-      status,
-      statusNoteAr,
-      activeTask,
-      completedTasks,
-    })),
+    agents: cloneAgents(agents),
+    rooms: cloneRooms(rooms),
   };
 
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
-    // Storage can be blocked or full (private mode); the live UI keeps working.
+    // Storage can be blocked or full; keep live UI running smoothly.
   }
 }
 
 export function clearOfficeState(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // Nothing to clear when storage is unavailable.
   }

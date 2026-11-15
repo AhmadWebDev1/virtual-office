@@ -26,7 +26,7 @@ GEMINI_API_KEY=ضع_مفتاحك_هنا
 
 احصل على المفتاح من [Google AI Studio](https://aistudio.google.com/apikey)، ثم أعد تشغيل الخادم.
 
-- أمر `auto` يُصنّف عبر `gemini-3.5-flash-lite` مع Structured Outputs، ويتحوّل تلقائياً إلى `gemini-2.5-flash` عند تعذّر الموديل الأساسي أو نفاد حصته.
+- أمر `auto` يُصنّف عبر `gemini-4-hydrogen` مع Structured Outputs، ويتحوّل تلقائياً إلى `gemini-3.1-flash-lite` أو `gemini-2.5-flash` عند تعذّر الموديل الأساسي أو نفاد حصته.
 - لكل وكيل تعليمات نظام عربية ودور مستقل: المدير العام، الإيميلات، المالية، التصميم، والإنستغرام.
 - الاستجابة تحمل `source: "gemini"`، و`messages.logAr` ملخصاً تفصيلياً، و`durationMs` بين 2000 و4000.
 - عند غياب المفتاح أو فشل أي استدعاء، يعود المشروع تلقائياً إلى المحرك المحلي دون تعطّل الواجهة، ويحمل الرد `source: "local-runtime"`.
@@ -75,6 +75,7 @@ npm run start -- -H 0.0.0.0
 - شريط الأوامر يستدعي `POST /api/agent`، والمسار يتحقق من الطلب ويعيد وكيلاً ومهمة ورسائل.
 - توجيه تلقائي عبر Gemini Structured Outputs عند وجود المفتاح، ومطابقة كلمات مفتاحية محلية كاحتياط.
 - خمس شخصيات عربية مستقلة تُولّد عنوان المهمة وفقاعات الحوار والملخص التفصيلي.
+- أدوات حقيقية لمدير الإيميلات (`fetch_recent_emails` حتى 50 رسالة، `create_email_draft`، و`trash_emails` لنقل الرسائل إلى المهملات) وللمدير المالي (`get_financial_summary`, `log_expense_or_invoice`) تتصل مباشرة بحسابك عبر **Sign in with Google** (Gmail وGoogle Sheets) مع وضع `demo_fallback` آمن عند عدم تسجيل الدخول.
 - تحديث حالة الوكيل من «يشتغل» إلى «خلصت» مع فقاعة حوار وسجل مهام.
 - سجل المهام يعرض الردّ الكامل من Gemini مع شارة المصدر (`Gemini` أو `محلي`).
 - حفظ حالات الوكلاء والمهام النشطة والسجل في `localStorage`، واستكمال المهام بعد إعادة تحميل الصفحة.
@@ -84,35 +85,16 @@ npm run start -- -H 0.0.0.0
 
 - الحفظ محلي لكل متصفح، ولا يتزامن بين الأجهزة أو المستخدمين.
 - لا توجد قاعدة بيانات أو مصادقة أو صلاحيات أو طابور مهام أو Rate Limiting.
-- أدوات Gmail وGoogle Sheets غير موصولة بعد؛ هيكل الربط جاهز في `src/lib/agent-tools.ts`.
 
-## ربط Gmail وGoogle Sheets
+## ربط Gmail وGoogle Sheets بنقرة واحدة
 
-سجّل الأدوات في `src/lib/agent-tools.ts`:
+لا تحتاج لنسخ أي مفاتيح OAuth أو Webhooks أو ملفات Service Account يدوياً:
 
-```ts
-export const AGENT_TOOLS: Partial<Record<AgentId, AgentToolSet>> = {
-  email: {
-    declarations: [{ name: "searchGmail", description: "...", parameters: { /* ... */ } }],
-    execute: async (call, context) => {
-      // Call the Gmail MCP server or Google API here.
-      return { messages: [] };
-    },
-  },
-  finance: {
-    declarations: [{ name: "appendToSheet", description: "...", parameters: { /* ... */ } }],
-    execute: async (call, context) => {
-      // Call the Google Sheets MCP server or Sheets API here.
-      return { updated: true };
-    },
-  },
-};
-```
-
-- المحرك يرسل `declarations` إلى Gemini تلقائياً ويستدعي `execute` عند طلب النموذج أداة، ثم يعيد النتيجة للنموذج قبل الرد النهائي.
-- اقرأ مفاتيح Gmail وGoogle من متغيرات بيئة على الخادم فقط.
-- يمكن استبدال `execute` باستدعاء MCP server مباشرة دون تغيير المسار أو الواجهة.
-- اختبر الصلاحيات: اطلب أقل نطاق ممكن (قراءة الوارد أو إضافة صف واحد) قبل فتح الكتابة الكاملة.
+1. اضغط زر **Sign in with Google** في الشريط العلوي داخل التطبيق وامنح الإذن لقراءة/تعديل وحذف رسائل Gmail (نقل إلى المهملات) وإنشاء مسودات البريد وGoogle Sheets.
+2. بعد تسجيل الدخول، يعمل وكيل الإيميلات (`email`) والمدير المالي (`finance`) مباشرة على حسابك الفعلي:
+   - عند أول طلب مالي بدون معرّف جدول محفوظ، يُنشئ المدير المالي تلقائياً جدول **«المكتب الافتراضي — السجل المالي»** في Google Sheets ويهيّئ الأعمدة (`date | type | amount | currency | category | description`)، ويمكنك تغيير رابط الجدول في أي وقت من نافذة الحساب المتصل.
+   - قبل أي تعديل على بياناتك (نقل رسائل إلى المهملات، إنشاء مسودة بريد، أو إضافة صف مالي)، تظهر نافذة تأكيد واضحة للموافقة أو الإلغاء.
+3. دون تسجيل الدخول، يعمل الوكلاء بأمان عبر بيانات `demo_fallback` التجريبية دون أخطاء.
 
 ## واجهة الـ API
 

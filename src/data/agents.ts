@@ -1,13 +1,32 @@
-export const WORLD = { width: 840, height: 600 } as const;
+import { normalizeSkillList, type CustomSkillDefinition } from "@/data/skills";
+
+export const WORLD = { width: 840, height: 396 } as const;
+
+export const OFFICE_GRID = {
+  width: 840,
+  paddingTop: 86,
+  colX: [40, 452] as const,
+  roomW: 348,
+  roomH: 212,
+  rowGap: 54,
+  rowStride: 266, // roomH (212) + rowGap (54)
+  hallX: 388,
+  hallW: 64,
+} as const;
 
 export type ThemeMode = "day" | "night";
 
 export const AGENT_STATUSES = ["working", "idle", "done", "error"] as const;
+export const FURNITURE_STYLES = ["tech", "creative", "admin", "finance"] as const;
 
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
-export type AgentId = "gm" | "email" | "finance" | "cover" | "instagram";
+export type FurnitureStyle = (typeof FURNITURE_STYLES)[number];
+export type AgentId = string;
+export type RoomId = string;
 export type AgentRuntimeSource = "gemini" | "local-runtime";
-export type RoomId = "gm" | "email" | "finance" | "creative";
+
+export const GM_AGENT_ID = "gm";
+export const GM_ROOM_ID = "gm";
 
 export interface StatusMeta {
   labelAr: string;
@@ -58,11 +77,8 @@ export interface CompletedTask {
   titleAr: string;
   timeAr: string;
   outcome?: "done" | "error";
-  /** Full Arabic summary returned by the runtime. */
   logAr?: string;
-  /** Which runtime produced the task. */
   source?: AgentRuntimeSource;
-  /** Set for tasks created in this browser so timeAr stays accurate after reloads. */
   completedAt?: number;
 }
 
@@ -129,6 +145,9 @@ export interface Agent {
   activeTask: ActiveTask | null;
   completedTasks: CompletedTask[];
   quickActions: QuickAction[];
+  rules: string;
+  skills: string[];
+  customSkills?: CustomSkillDefinition[];
   avatar: AgentAvatar;
   position: { x: number; y: number };
 }
@@ -140,90 +159,119 @@ export interface Room {
   descriptionAr: string;
   rect: { x: number; y: number; w: number; h: number };
   accent: string;
+  furnitureStyle: FurnitureStyle;
   agentIds: AgentId[];
 }
 
-export const ROOMS: Room[] = [
+export interface WorldDimensions {
+  width: number;
+  height: number;
+  rowCount: number;
+  buildingBottom: number;
+}
+
+export function getWorldDimensions(rooms: Room[]): WorldDimensions {
+  const count = Math.max(1, rooms.length);
+  const rowCount = Math.max(1, Math.ceil(count / 2));
+  const lastRowBottom =
+    OFFICE_GRID.paddingTop +
+    (rowCount - 1) * OFFICE_GRID.rowStride +
+    OFFICE_GRID.roomH;
+  // Single-row HQ extends hallway down 46px to the stepped entrance; multi-row finishes cleanly below bottom row.
+  const buildingBottom = rowCount === 1 ? lastRowBottom + 46 : lastRowBottom;
+  const height = buildingBottom + 38;
+  return {
+    width: OFFICE_GRID.width,
+    height,
+    rowCount,
+    buildingBottom,
+  };
+}
+
+export function computeRoomPlacement(index: number): {
+  col: 0 | 1;
+  row: number;
+  rect: { x: number; y: number; w: number; h: number };
+  agentPosition: { x: number; y: number };
+} {
+  const col = (index % 2) as 0 | 1;
+  const row = Math.floor(index / 2);
+  const x = OFFICE_GRID.colX[col];
+  const y = OFFICE_GRID.paddingTop + row * OFFICE_GRID.rowStride;
+  return {
+    col,
+    row,
+    rect: {
+      x,
+      y,
+      w: OFFICE_GRID.roomW,
+      h: OFFICE_GRID.roomH,
+    },
+    agentPosition: {
+      x: x + 188,
+      y: y + 88,
+    },
+  };
+}
+
+export const INITIAL_ROOMS: Room[] = [
   {
-    id: "gm",
+    id: GM_ROOM_ID,
     nameAr: "غرفة المدير العام",
     shortNameAr: "المدير العام",
-    descriptionAr: "قيادة العمليات، توزيع المهام، ومتابعة أداء الفريق.",
+    descriptionAr: "قيادة العمليات، توظيف الوكلاء الجدد، وتوزيع المهام على الفريق.",
     rect: { x: 40, y: 86, w: 348, h: 212 },
     accent: "#d8a54a",
-    agentIds: ["gm"],
-  },
-  {
-    id: "creative",
-    nameAr: "غرفة الإبداع والتسويق",
-    shortNameAr: "الإبداع",
-    descriptionAr: "استوديو مشترك للتصميم وصناعة المحتوى وإدارة المجتمع.",
-    rect: { x: 452, y: 86, w: 348, h: 212 },
-    accent: "#e58a62",
-    agentIds: ["cover", "instagram"],
-  },
-  {
-    id: "email",
-    nameAr: "غرفة مدير الإيميلات",
-    shortNameAr: "الإيميلات",
-    descriptionAr: "فرز الوارد، صياغة الردود، وتلخيص الرسائل المهمة.",
-    rect: { x: 40, y: 352, w: 348, h: 212 },
-    accent: "#76b7b2",
-    agentIds: ["email"],
-  },
-  {
-    id: "finance",
-    nameAr: "غرفة المدير المالي",
-    shortNameAr: "المالية",
-    descriptionAr: "متابعة الفواتير، المصروفات، والتقارير المالية الشهرية.",
-    rect: { x: 452, y: 352, w: 348, h: 212 },
-    accent: "#9ab77a",
-    agentIds: ["finance"],
+    furnitureStyle: "admin",
+    agentIds: [GM_AGENT_ID],
   },
 ];
 
-export const AGENTS: Agent[] = [
+export const INITIAL_AGENTS: Agent[] = [
   {
-    id: "gm",
+    id: GM_AGENT_ID,
     nameAr: "سلمان العتيبي",
     roleAr: "المدير العام",
     roleEn: "General Manager",
-    roomId: "gm",
+    roomId: GM_ROOM_ID,
     stationAr: "مكتب الإدارة",
-    status: "working",
-    statusNoteAr: "يراجع خطة إطلاق الربع الأخير ويوزّع أولويات اليوم.",
-    activeTask: {
-      titleAr: "مراجعة خطة إطلاق الربع الأخير",
-      progress: 64,
-      noteAr: "ينتهي خلال 12 دقيقة",
-    },
+    status: "idle",
+    statusNoteAr: "جاهز لبناء فريقك — اطلب منه توظيف أي وكيل أو توجيه المهام.",
+    activeTask: null,
     completedTasks: [
-      { id: "gm-1", titleAr: "توزيع مهام الأسبوع على الوكلاء", timeAr: "منذ 25 دقيقة" },
-      { id: "gm-2", titleAr: "مراجعة تقرير أداء الفريق اليومي", timeAr: "منذ ساعة" },
-      { id: "gm-3", titleAr: "اعتماد ميزانية الحملة القادمة", timeAr: "منذ 3 ساعات" },
-      { id: "gm-4", titleAr: "اجتماع تنسيق مع مدير الإبداع", timeAr: "أمس" },
-      { id: "gm-5", titleAr: "تحديث خريطة أولويات الشهر", timeAr: "أمس" },
+      {
+        id: "gm-boot-1",
+        titleAr: "تجهيز المقر الرئيسي واستلام القيادة",
+        timeAr: "منذ قليل",
+        outcome: "done",
+        logAr:
+          "افتتحت المقر الرئيسي بنجاح. اطلب مني إنشاء أي وكيل جديد مثل مبرمج ويب، مسؤول مبيعات، أو مدير مالي وسأبني غرفته فوراً.",
+      },
     ],
     quickActions: [
       {
+        id: "gm-hire-dev",
+        labelAr: "وظّف مبرمج ويب",
+        command: "أنشئ وكيل مبرمج ويب وضع له قواعد صارمة لجودة الكود",
+        hintAr: "إضافة غرفة جديدة",
+      },
+      {
         id: "gm-plan",
-        labelAr: "وزّع المهام اليومية",
-        command: "وزّع مهام اليوم على الوكلاء بحسب الأولوية",
-        hintAr: "توزيع ذكي",
+        labelAr: "خطّة العمل اليومية",
+        command: "رتّب أولويات اليوم واقترح الوكلاء المطلوبين للفريق",
+        hintAr: "تنظيم ذكي",
       },
       {
         id: "gm-brief",
-        labelAr: "لخّص أداء الفريق",
-        command: "أعطني ملخصاً سريعاً لأداء الفريق اليوم",
-        hintAr: "تقرير قصير",
-      },
-      {
-        id: "gm-week",
-        labelAr: "راجع خطة الأسبوع",
-        command: "راجع خطة الأسبوع القادم واقترح تعديلات",
-        hintAr: "تخطيط",
+        labelAr: "ملخص حالة المقر",
+        command: "أعطني ملخصاً عن حالة المكتب والوكلاء الحاليين",
+        hintAr: "تقرير سريع",
       },
     ],
+    rules:
+      "أنت المدير العام الذكي للمقر. تستقبل الأوامر العامة، تخطّط الأولويات، وتنشئ وكلاء جدد عند طلب المستخدم باستخدام الأداة create_new_agent مع تحديد مهاراتهم وقواعدهم وأسلوب غرفتهم.",
+    skills: ["task-management", "research-summary"],
+    customSkills: [],
     avatar: {
       skin: "#d7a071",
       skinShadow: "#ae7b50",
@@ -238,237 +286,27 @@ export const AGENTS: Agent[] = [
     },
     position: { x: 228, y: 174 },
   },
-  {
-    id: "email",
-    nameAr: "ريم الشمري",
-    roleAr: "مدير الإيميلات",
-    roleEn: "Email Manager",
-    roomId: "email",
-    stationAr: "مكتب البريد",
-    status: "working",
-    statusNoteAr: "تفرز صندوق الوارد وتلتقط الرسائل العاجلة.",
-    activeTask: {
-      titleAr: "فرز 42 رسالة واردة",
-      progress: 42,
-      noteAr: "متبقي 18 رسالة",
-    },
-    completedTasks: [
-      { id: "em-1", titleAr: "تلخيص 6 رسائل من عملاء مهمين", timeAr: "منذ 18 دقيقة" },
-      { id: "em-2", titleAr: "مسودة رد على استفسار الشراكة", timeAr: "منذ 40 دقيقة" },
-      { id: "em-3", titleAr: "أرشفة رسائل الأرشيف القديم", timeAr: "منذ ساعتين" },
-      { id: "em-4", titleAr: "تصعيد فاتورة متأخرة للمدير المالي", timeAr: "أمس" },
-      { id: "em-5", titleAr: "تنظيف قائمة الاشتراكات البريدية", timeAr: "أمس" },
-    ],
-    quickActions: [
-      {
-        id: "em-sort",
-        labelAr: "فرز الوارد",
-        command: "افرز صندوق الوارد ورتّب الرسائل حسب الأولوية",
-        hintAr: "42 رسالة",
-      },
-      {
-        id: "em-summary",
-        labelAr: "تلخيص الرسائل المهمة",
-        command: "لخّص الرسائل المهمة التي وصلت اليوم",
-        hintAr: "ملخص سريع",
-      },
-      {
-        id: "em-draft",
-        labelAr: "مسودة رد",
-        command: "اكتب مسودة رد مهنية على آخر رسالة من عميل",
-        hintAr: "رد جاهز",
-      },
-    ],
-    avatar: {
-      skin: "#e0ae82",
-      skinShadow: "#b8825a",
-      hair: "#3a2722",
-      hairShadow: "#201512",
-      shirt: "#2b6f6a",
-      shirtShadow: "#1b4b47",
-      accent: "#8fd6cd",
-      style: "long",
-      accessory: "headset",
-    },
-    position: { x: 212, y: 428 },
-  },
-  {
-    id: "finance",
-    nameAr: "خالد الدوسري",
-    roleAr: "المدير المالي",
-    roleEn: "Finance Manager",
-    roomId: "finance",
-    stationAr: "مكتب المالية",
-    status: "error",
-    statusNoteAr: "توقفت مطابقة كشف البنك بسبب صلاحية ناقصة.",
-    activeTask: {
-      titleAr: "مطابقة كشف البنك — أكتوبر",
-      progress: 72,
-      noteAr: "يحتاج تجديد صلاحية الاتصال",
-    },
-    completedTasks: [
-      { id: "fi-1", titleAr: "إصدار تقرير المصروفات الأسبوعي", timeAr: "منذ 35 دقيقة" },
-      { id: "fi-2", titleAr: "مراجعة 14 فاتورة مورد", timeAr: "منذ ساعتين" },
-      { id: "fi-3", titleAr: "تحديث توقعات التدفق النقدي", timeAr: "منذ 4 ساعات" },
-      { id: "fi-4", titleAr: "اعتماد مصروفات حملة الإنستغرام", timeAr: "أمس" },
-      { id: "fi-5", titleAr: "تسوية مصروفات السفر", timeAr: "أمس" },
-    ],
-    quickActions: [
-      {
-        id: "fi-invoices",
-        labelAr: "تحديث الفواتير",
-        command: "حدّث حالة الفواتير المعلّقة واستخرج المتأخرة",
-        hintAr: "14 فاتورة",
-      },
-      {
-        id: "fi-expenses",
-        labelAr: "تقرير المصروفات",
-        command: "جهّز تقرير المصروفات لهذا الشهر",
-        hintAr: "تقرير مالي",
-      },
-      {
-        id: "fi-bank",
-        labelAr: "مطابقة كشف البنك",
-        command: "أعد محاولة مطابقة كشف البنك وأبلغني بالنتيجة",
-        hintAr: "إعادة محاولة",
-      },
-    ],
-    avatar: {
-      skin: "#c98d60",
-      skinShadow: "#9e6842",
-      hair: "#211c1a",
-      hairShadow: "#100d0c",
-      shirt: "#566b4a",
-      shirtShadow: "#394a30",
-      accent: "#d6c084",
-      style: "short",
-      accessory: "glasses",
-      beard: true,
-    },
-    position: { x: 636, y: 428 },
-  },
-  {
-    id: "cover",
-    nameAr: "فهد المطيري",
-    roleAr: "مصمم الكفرات",
-    roleEn: "Cover Designer",
-    roomId: "creative",
-    stationAr: "محطة التصميم",
-    status: "done",
-    statusNoteAr: "سلّم كفرات حملة الخريف وجاهز للمراجعة.",
-    activeTask: {
-      titleAr: "تسليم كفرات حملة الخريف",
-      progress: 100,
-      noteAr: "اكتملت قبل 8 دقائق",
-    },
-    completedTasks: [
-      { id: "co-1", titleAr: "تصميم 3 كفرات لحملة الخريف", timeAr: "منذ 8 دقائق" },
-      { id: "co-2", titleAr: "تنويعات ألوان كفر العرض الرئيسي", timeAr: "منذ 22 دقيقة" },
-      { id: "co-3", titleAr: "تصدير ملفات التصميم النهائية", timeAr: "منذ ساعة" },
-      { id: "co-4", titleAr: "تعديل مقاس كفر الريلز", timeAr: "أمس" },
-      { id: "co-5", titleAr: "تجهيز لوحة مزاج للحملة", timeAr: "أمس" },
-    ],
-    quickActions: [
-      {
-        id: "co-cover",
-        labelAr: "كفر حملة جديدة",
-        command: "صمّم كفراً جديداً لحملة العودة إلى المدرسة",
-        hintAr: "تصميم جديد",
-      },
-      {
-        id: "co-colors",
-        labelAr: "تنويعات الألوان",
-        command: "اقترح ثلاث تنويعات لونية للكفر الحالي",
-        hintAr: "3 خيارات",
-      },
-      {
-        id: "co-export",
-        labelAr: "تصدير الملفات النهائية",
-        command: "صدّر كل ملفات الكفرات بالنسخ النهائية",
-        hintAr: "ملفات جاهزة",
-      },
-    ],
-    avatar: {
-      skin: "#d29a6b",
-      skinShadow: "#a8724b",
-      hair: "#241b16",
-      hairShadow: "#120d0b",
-      shirt: "#c47d3d",
-      shirtShadow: "#955527",
-      accent: "#f2cd76",
-      style: "curly",
-      accessory: "beanie",
-    },
-    position: { x: 542, y: 174 },
-  },
-  {
-    id: "instagram",
-    nameAr: "دانة الزهراني",
-    roleAr: "مدير الإنستغرام",
-    roleEn: "Instagram Manager",
-    roomId: "creative",
-    stationAr: "محطة السوشيال",
-    status: "idle",
-    statusNoteAr: "بانتظار موجز الحملة القادمة قبل الجدولة.",
-    activeTask: null,
-    completedTasks: [
-      { id: "ig-1", titleAr: "جدولة 3 منشورات للأسبوع", timeAr: "منذ ساعتين" },
-      { id: "ig-2", titleAr: "تحليل تفاعل آخر 7 أيام", timeAr: "منذ 5 ساعات" },
-      { id: "ig-3", titleAr: "الرد على 18 تعليقاً من المجتمع", timeAr: "أمس" },
-      { id: "ig-4", titleAr: "اقتراح هاشتاقات للريل الجديد", timeAr: "أمس" },
-      { id: "ig-5", titleAr: "تحديث تقويم المحتوى", timeAr: "قبل يومين" },
-    ],
-    quickActions: [
-      {
-        id: "ig-analytics",
-        labelAr: "تحليل التفاعل",
-        command: "حلّل تفاعل الحساب هذا الأسبوع واقترح تحسينات",
-        hintAr: "تقرير أسبوعي",
-      },
-      {
-        id: "ig-schedule",
-        labelAr: "جدولة منشور",
-        command: "جدول منشوراً جديداً للخميس الساعة الثامنة مساءً",
-        hintAr: "تقويم المحتوى",
-      },
-      {
-        id: "ig-hashtags",
-        labelAr: "اقتراح هاشتاقات",
-        command: "اقترح هاشتاقات مناسبة للمنشور القادم",
-        hintAr: "وصول أوسع",
-      },
-    ],
-    avatar: {
-      skin: "#e3b087",
-      skinShadow: "#b98258",
-      hair: "#6d3d2a",
-      hairShadow: "#48251a",
-      shirt: "#b75963",
-      shirtShadow: "#853a43",
-      accent: "#f2b6b0",
-      style: "bun",
-      accessory: "headset",
-    },
-    position: { x: 704, y: 174 },
-  },
 ];
 
+// Kept for convenience where baseline defaults are referenced.
+export const ROOMS: Room[] = INITIAL_ROOMS;
+export const AGENTS: Agent[] = INITIAL_AGENTS;
 export const DEFAULT_TARGET = "auto" as const;
 
-export function getAgentById(agentId: string): Agent | undefined {
-  return AGENTS.find((agent) => agent.id === agentId);
+export function getAgentById(agentId: string, list: Agent[] = INITIAL_AGENTS): Agent | undefined {
+  return list.find((agent) => agent.id === agentId);
 }
 
-export function isAgentId(value: unknown): value is AgentId {
-  return typeof value === "string" && AGENTS.some((agent) => agent.id === value);
+export function isAgentId(value: unknown, list: Agent[] = INITIAL_AGENTS): value is AgentId {
+  return typeof value === "string" && list.some((agent) => agent.id === value);
 }
 
-export function getRoomById(roomId: string): Room | undefined {
-  return ROOMS.find((room) => room.id === roomId);
+export function getRoomById(roomId: string, list: Room[] = INITIAL_ROOMS): Room | undefined {
+  return list.find((room) => room.id === roomId);
 }
 
-export function getAgentsForRoom(roomId: RoomId): Agent[] {
-  return AGENTS.filter((agent) => agent.roomId === roomId);
+export function getAgentsForRoom(roomId: RoomId, list: Agent[] = INITIAL_AGENTS): Agent[] {
+  return list.filter((agent) => agent.roomId === roomId);
 }
 
 export function statusCounts(agents: Agent[]): Record<AgentStatus, number> {
@@ -484,12 +322,335 @@ export function statusCounts(agents: Agent[]): Record<AgentStatus, number> {
 export function cloneAgents(agents: Agent[]): Agent[] {
   return agents.map((agent) => ({
     ...agent,
+    skills: [...agent.skills],
+    customSkills: agent.customSkills ? agent.customSkills.map((skill) => ({ ...skill })) : [],
     activeTask: agent.activeTask ? { ...agent.activeTask } : null,
     completedTasks: agent.completedTasks.map((task) => ({ ...task })),
     quickActions: agent.quickActions.map((action) => ({ ...action })),
     avatar: { ...agent.avatar },
     position: { ...agent.position },
   }));
+}
+
+export function cloneRooms(rooms: Room[]): Room[] {
+  return rooms.map((room) => ({
+    ...room,
+    rect: { ...room.rect },
+    agentIds: [...room.agentIds],
+  }));
+}
+
+const SKIN_TONES = [
+  { skin: "#e0ae82", skinShadow: "#b8825a" },
+  { skin: "#d7a071", skinShadow: "#ae7b50" },
+  { skin: "#c98d60", skinShadow: "#9e6842" },
+  { skin: "#e3b087", skinShadow: "#b98258" },
+] as const;
+
+const HAIR_TONES = [
+  { hair: "#211c1a", hairShadow: "#100d0c" },
+  { hair: "#3a2722", hairShadow: "#201512" },
+  { hair: "#6d3d2a", hairShadow: "#48251a" },
+  { hair: "#2d3138", hairShadow: "#181b20" },
+] as const;
+
+const STYLE_SHIRT_PALETTES: Record<FurnitureStyle, Array<{ shirt: string; shirtShadow: string }>> = {
+  tech: [
+    { shirt: "#28506b", shirtShadow: "#19364a" },
+    { shirt: "#2c5f63", shirtShadow: "#1b3f42" },
+  ],
+  creative: [
+    { shirt: "#b75963", shirtShadow: "#853a43" },
+    { shirt: "#c47d3d", shirtShadow: "#955527" },
+  ],
+  admin: [
+    { shirt: "#1f4b46", shirtShadow: "#14332f" },
+    { shirt: "#3e4b5c", shirtShadow: "#28313d" },
+  ],
+  finance: [
+    { shirt: "#566b4a", shirtShadow: "#394a30" },
+    { shirt: "#3f5b55", shirtShadow: "#293e39" },
+  ],
+};
+
+const HAIR_STYLES: AgentAvatar["style"][] = ["short", "long", "curly", "bun"];
+const ACCESSORIES: Record<FurnitureStyle, AgentAvatar["accessory"][]> = {
+  tech: ["glasses", "headset", "beanie"],
+  creative: ["beanie", "headset", "glasses"],
+  admin: ["glasses", "none", "headset"],
+  finance: ["glasses", "none", "headset"],
+};
+
+export function normalizeHexColor(value: unknown, style: FurnitureStyle): string {
+  if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim())) {
+    return value.trim();
+  }
+  if (style === "tech") return "#5aa9e6";
+  if (style === "creative") return "#e58a62";
+  if (style === "finance") return "#9ab77a";
+  return "#d8a54a";
+}
+
+export function normalizeFurnitureStyle(value: unknown): FurnitureStyle {
+  if (value === "tech" || value === "creative" || value === "admin" || value === "finance") {
+    return value;
+  }
+  return "admin";
+}
+
+export function generateProceduralAvatar(
+  seedInput: string,
+  themeColor: string,
+  furnitureStyle: FurnitureStyle,
+): AgentAvatar {
+  let hash = 0;
+  for (let i = 0; i < seedInput.length; i += 1) {
+    hash = (hash * 31 + seedInput.charCodeAt(i)) >>> 0;
+  }
+  const skin = SKIN_TONES[hash % SKIN_TONES.length];
+  const hair = HAIR_TONES[(hash >> 2) % HAIR_TONES.length];
+  const shirts = STYLE_SHIRT_PALETTES[furnitureStyle];
+  const shirt = shirts[(hash >> 4) % shirts.length];
+  const style = HAIR_STYLES[(hash >> 5) % HAIR_STYLES.length];
+  const accessoryList = ACCESSORIES[furnitureStyle];
+  const accessory = accessoryList[(hash >> 7) % accessoryList.length];
+  const beard = style === "short" && (hash % 3 !== 0);
+
+  return {
+    skin: skin.skin,
+    skinShadow: skin.skinShadow,
+    hair: hair.hair,
+    hairShadow: hair.hairShadow,
+    shirt: shirt.shirt,
+    shirtShadow: shirt.shirtShadow,
+    accent: normalizeHexColor(themeColor, furnitureStyle),
+    style,
+    accessory,
+    beard,
+  };
+}
+
+function buildStarterQuickActions(
+  roleAr: string,
+  style: FurnitureStyle,
+  skills: string[],
+): QuickAction[] {
+  if (skills.includes("gmail-workspace")) {
+    return [
+      {
+        id: "qa-mail-sort",
+        labelAr: "فرز الوارد",
+        command: "افرز صندوق الوارد ورتّب الرسائل حسب الأولوية",
+        hintAr: "بريد Gmail",
+      },
+      {
+        id: "qa-mail-summary",
+        labelAr: "تلخيص الرسائل",
+        command: "لخّص الرسائل المهمة التي وصلت اليوم",
+        hintAr: "ملخص سريع",
+      },
+      {
+        id: "qa-mail-draft",
+        labelAr: "مسودة رد",
+        command: "اكتب مسودة رد مهنية على آخر رسالة من عميل",
+        hintAr: "مسودة جاهزة",
+      },
+    ];
+  }
+  if (skills.includes("sheets-finance") || style === "finance") {
+    return [
+      {
+        id: "qa-fin-summary",
+        labelAr: "الملخص المالي",
+        command: "أعطني الملخص المالي هذا الشهر",
+        hintAr: "تحليل مالي",
+      },
+      {
+        id: "qa-fin-expense",
+        labelAr: "تسجيل مصروف",
+        command: "سجّل مصروف 250 ريال ضيافة ومستلزمات مكتب",
+        hintAr: "إضافة صف",
+      },
+      {
+        id: "qa-fin-audit",
+        labelAr: "تدقيق الفواتير",
+        command: "راجع الفواتير والمصروفات واستخرج أبرز الملاحظات",
+        hintAr: "مراجعة",
+      },
+    ];
+  }
+  if (style === "tech") {
+    return [
+      {
+        id: "qa-tech-arch",
+        labelAr: "مراجعة الكود",
+        command: `بصفتك ${roleAr}، راجع بنية النظام واقترح تحسينات تقنية`,
+        hintAr: "هندسة برمجية",
+      },
+      {
+        id: "qa-tech-bug",
+        labelAr: "فحص الأعطال",
+        command: `بصفتك ${roleAr}، صمّم خطة فحص للأعطال والأداء`,
+        hintAr: "جودة واستقرار",
+      },
+      {
+        id: "qa-tech-build",
+        labelAr: "بناء ميزة",
+        command: `بصفتك ${roleAr}، اقترح خطوات تنفيذ ميزة جديدة متكاملة`,
+        hintAr: "تطوير سريع",
+      },
+    ];
+  }
+  if (style === "creative") {
+    return [
+      {
+        id: "qa-cre-idea",
+        labelAr: "أفكار حملة",
+        command: `بصفتك ${roleAr}، اقترح 3 أفكار إبداعية لحملة جديدة`,
+        hintAr: "إبداع وتسويق",
+      },
+      {
+        id: "qa-cre-copy",
+        labelAr: "صياغة عرض",
+        command: `بصفتك ${roleAr}، جهّز نصاً تسويقياً جذاباً للعملاء`,
+        hintAr: "محتوى جاهز",
+      },
+      {
+        id: "qa-cre-review",
+        labelAr: "خطة أسبوعية",
+        command: `بصفتك ${roleAr}، رتّب خطة عمل أسبوعية واضحة`,
+        hintAr: "جدول زمني",
+      },
+    ];
+  }
+  return [
+    {
+      id: "qa-gen-plan",
+      labelAr: "خطة التنفيذ",
+      command: `بصفتك ${roleAr}، ضع خطة عمل مرتبة للأولويات الحالية`,
+      hintAr: "تنظيم المهام",
+    },
+    {
+      id: "qa-gen-report",
+      labelAr: "تقرير سريع",
+      command: `بصفتك ${roleAr}، أعدّ تقريراً موجزاً عن التقدم والخطوات القادمة`,
+      hintAr: "ملخص تنفيذي",
+    },
+    {
+      id: "qa-gen-sop",
+      labelAr: "قواعد التشغيل",
+      command: `بصفتك ${roleAr}، اقترح ضوابط جودة لرفع كفاءة عملك`,
+      hintAr: "معايير الجودة",
+    },
+  ];
+}
+
+function makeShortRoomName(roomNameAr: string, roleAr: string): string {
+  const cleaned = roomNameAr.replace(/^غرفة\s+/, "").trim();
+  if (cleaned.length > 0 && cleaned.length <= 16) return cleaned;
+  return roleAr.slice(0, 16);
+}
+
+export interface CreateAgentSpecInput {
+  id?: string;
+  nameAr: string;
+  roleAr: string;
+  roleEn?: string;
+  roomNameAr: string;
+  rules: string;
+  skills: string[];
+  themeColor: string;
+  furnitureStyle: FurnitureStyle;
+}
+
+export function createAgentAndRoomFromSpec(
+  spec: CreateAgentSpecInput,
+  existingAgents: Agent[],
+  existingRooms: Room[],
+): { agent: Agent; room: Room } {
+  const furnitureStyle = normalizeFurnitureStyle(spec.furnitureStyle);
+  const themeColor = normalizeHexColor(spec.themeColor, furnitureStyle);
+  const skills = normalizeSkillList(spec.skills);
+  const effectiveSkills =
+    skills.length > 0
+      ? skills
+      : furnitureStyle === "tech"
+        ? ["code-writing", "research-summary"]
+        : furnitureStyle === "finance"
+          ? ["data-analysis", "sheets-finance"]
+          : furnitureStyle === "creative"
+            ? ["email-drafting", "research-summary"]
+            : ["task-management"];
+
+  const nextIndex = existingRooms.length;
+  const suffix = (nextIndex + 1).toString();
+  const baseId =
+    spec.id && /^[a-z0-9_-]{2,40}$/i.test(spec.id)
+      ? spec.id
+      : `agent-${suffix}-${Date.now().toString(36).slice(-4)}`;
+  const uniqueAgentId = existingAgents.some((a) => a.id === baseId)
+    ? `${baseId}-${Math.random().toString(36).slice(2, 5)}`
+    : baseId;
+  const uniqueRoomId = existingRooms.some((r) => r.id === `room-${uniqueAgentId}`)
+    ? `room-${uniqueAgentId}-${Math.random().toString(36).slice(2, 4)}`
+    : `room-${uniqueAgentId}`;
+
+  const placement = computeRoomPlacement(nextIndex);
+  const roomNameAr = spec.roomNameAr.trim() || `غرفة ${spec.roleAr}`;
+  const roleEn =
+    spec.roleEn?.trim() ||
+    (furnitureStyle === "tech"
+      ? "Tech Specialist"
+      : furnitureStyle === "finance"
+        ? "Finance Specialist"
+        : furnitureStyle === "creative"
+          ? "Creative Specialist"
+          : "Operations Specialist");
+
+  const room: Room = {
+    id: uniqueRoomId,
+    nameAr: roomNameAr,
+    shortNameAr: makeShortRoomName(roomNameAr, spec.roleAr),
+    descriptionAr: `${spec.roleAr} — ${spec.rules.slice(0, 95)}`,
+    rect: placement.rect,
+    accent: themeColor,
+    furnitureStyle,
+    agentIds: [uniqueAgentId],
+  };
+
+  const agent: Agent = {
+    id: uniqueAgentId,
+    nameAr: spec.nameAr.trim(),
+    roleAr: spec.roleAr.trim(),
+    roleEn,
+    roomId: uniqueRoomId,
+    stationAr: `محطة ${spec.roleAr.trim()}`,
+    status: "idle",
+    statusNoteAr: "تم بناء الغرفة وتفعيل الوكيل — جاهز لاستلام الأوامر.",
+    activeTask: null,
+    completedTasks: [
+      {
+        id: `hire-${uniqueAgentId}`,
+        titleAr: `انضمام ${spec.nameAr.trim()} وتجهيز ${roomNameAr}`,
+        timeAr: "الآن",
+        outcome: "done",
+        completedAt: Date.now(),
+        logAr: `تم إنشاء الوكيل بمهارات (${effectiveSkills.length}) وقواعد مخصصة من المدير العام.`,
+      },
+    ],
+    quickActions: buildStarterQuickActions(spec.roleAr.trim(), furnitureStyle, effectiveSkills),
+    rules: spec.rules.trim(),
+    skills: effectiveSkills,
+    customSkills: [],
+    avatar: generateProceduralAvatar(
+      `${spec.nameAr}-${spec.roleAr}-${nextIndex}`,
+      themeColor,
+      furnitureStyle,
+    ),
+    position: placement.agentPosition,
+  };
+
+  return { agent, room };
 }
 
 export interface AgentTaskInput {
@@ -520,7 +681,7 @@ export function beginAgentTask(
     return {
       ...agent,
       status: "working",
-      statusNoteAr: `تستلم المهمة الجديدة الآن — ${task.titleAr}`,
+      statusNoteAr: `يستلم المهمة الجديدة الآن — ${task.titleAr}`,
       activeTask: {
         id: task.id,
         titleAr: task.titleAr,
@@ -561,7 +722,7 @@ export function completeAgentTask(
     return {
       ...agent,
       status: "done",
-      statusNoteAr: "أنجزت المهمة وحدّثت سجل الفريق.",
+      statusNoteAr: "أنجز المهمة وحدّث سجل الفريق.",
       activeTask: {
         ...active,
         progress: 100,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { AGENTS, STATUS_META, type Agent } from "@/data/agents";
+import { STATUS_META, type Agent } from "@/data/agents";
 import type { CommandTarget } from "@/lib/agent-contracts";
 import {
   ChevronDownIcon,
@@ -72,7 +72,7 @@ export default function CommandBar({
           <div className="command-receipt command-receipt-idle">
             <span className="receipt-led" aria-hidden="true" />
             <span className="receipt-text">
-              فريقك متصل — اكتب أمراً وسيتولى المدير العام التوجيه تلقائياً.
+              اطلب من المدير العام إنشاء وكلاء جدد أو توجيه المهام تلقائياً لفريقك.
             </span>
             <span className="receipt-shortcut">
               <kbd>Enter</kbd> للإرسال
@@ -99,7 +99,7 @@ export default function CommandBar({
               aria-label="اختر الوكيل المستلم للأمر"
             >
               <option value="auto">توجيه تلقائي · عبر المدير العام</option>
-              {AGENTS.map((agent) => (
+              {agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.nameAr} · {agent.roleAr}
                 </option>
@@ -111,7 +111,7 @@ export default function CommandBar({
           <div className="command-input-wrap">
             <CommandIcon width={16} height={16} className="command-input-icon" />
             <label htmlFor={inputId} className="sr-only">
-              اكتب أمراً لفريق الوكلاء
+              اكتب أمراً للمدير العام أو فريق الوكلاء
             </label>
             <input
               ref={inputRef}
@@ -119,13 +119,13 @@ export default function CommandBar({
               className="command-input"
               value={command}
               onChange={(event) => setCommand(event.target.value)}
-              placeholder="اكتب أمراً لفريقك… مثال: لخّص رسائل العملاء المهمة"
-              maxLength={320}
+              placeholder="مثال: أنشئ وكيل مبرمج ويب وضع له قواعد صارمة…"
+              maxLength={500}
               autoComplete="off"
               disabled={sending}
             />
             <span className="command-count" aria-hidden="true">
-              {command.length > 0 ? `${command.length}/320` : ""}
+              {command.length > 0 ? `${command.length}/500` : ""}
             </span>
           </div>
 
@@ -151,11 +151,11 @@ export default function CommandBar({
         <div className="command-meta">
           <span>
             <TerminalIcon width={11} height={11} />
-            شريط أوامر الفريق
+            شريط بناء وتوجيه الوكلاء
           </span>
           <span className="command-meta-route">
             <RouteIcon width={11} height={11} />
-            التوجيه الذكي مفعّل
+            التوجيه الذكي مفعّل ({agents.length} {agents.length === 1 ? "وكيل" : "وكلاء"})
           </span>
         </div>
       </div>
