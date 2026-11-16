@@ -1,0 +1,453 @@
+{
+  "version": 2,
+  "savedAt": 1794857243954,
+  "agents": [
+    {
+      "id": "gm",
+      "nameAr": "سلمان العتيبي",
+      "roleAr": "المدير العام",
+      "roleEn": "General Manager",
+      "roomId": "gm",
+      "stationAr": "مكتب الإدارة",
+      "status": "done",
+      "statusNoteAr": "أنجز المهمة — تم تأسيس وتسكين فريق التسويق الرقمي في المقر بنجاح.",
+      "activeTask": null,
+      "completedTasks": [
+        {
+          "id": "task-gm-mwipbk41-42un",
+          "titleAr": "تأسيس فريق التسويق الرقمي وإنشاء الوكلاء الجدد في المقر",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794799569220,
+          "logAr": "قمت بتخطيط وتوزيع المهام المطلوبة عبر المدير العام، حيث تم استدعاء أدوات إنشاء الوكلاء لتخصيص محلل لصفحة الإنستغرام ومقترح أفكار الفيديوهات ومصمم البوسترات ليعملوا بتناغم داخل نفس الغرفة لتغطية كافة جوانب التسويق الرقمي.",
+          "source": "gemini"
+        },
+        {
+          "id": "task-gm-mwipa7o4-brf1",
+          "titleAr": "إنشاء وتسكين فريق التسويق والمحتوى الرقمي في غرفة واحدة",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794799506438,
+          "logAr": "قمت بتفعيل أدوات إنشاء الوكلاء الجدد لتغطية فحص حساب الإنستجرام واقتراح الأفكار وصناعة البوسترات، وتم تسكينهم جميعاً في غرفة مشتركة لتنسيق الجهود التسويقية. الخطوة التالية هي توجيه الفريق للبدء بتحليل الأداء الحالي ووضع خطة المحتوى الأسبوعية.",
+          "source": "gemini"
+        },
+        {
+          "id": "task-gm-mwikqshm-m9p3",
+          "titleAr": "تأسيس فريق التسويق الرقمي والمحتوى البصري في الغرفة الحالية",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794791881835,
+          "logAr": "قمت بتخطيط الهيكل التنظيمي للمقر واستدعاء أدوات إنشاء الوكلاء لتأسيس المحللين والمصممين. تم تسكين جميع الوكلاء الجدد داخل نفس الغرفة الحالية حسب توجيهاتك لتسهيل التعاون الفوري. الخطوة التالية هي توجيه الفريق للبدء بتحليل الحساب وابتكار أول دفعة من المحتوى.",
+          "source": "gemini"
+        },
+        {
+          "id": "gm-boot-1",
+          "titleAr": "تجهيز المقر الرئيسي واستلام القيادة",
+          "timeAr": "منذ قليل",
+          "outcome": "done",
+          "logAr": "افتتحت المقر الرئيسي بنجاح. اطلب مني إنشاء أي وكيل جديد مثل مبرمج ويب، مسؤول مبيعات، أو مدير مالي وسأبني غرفته فوراً."
+        }
+      ],
+      "quickActions": [
+        {
+          "id": "gm-hire-dev",
+          "labelAr": "وظّف مبرمج ويب",
+          "command": "أنشئ وكيل مبرمج ويب وضع له قواعد صارمة لجودة الكود",
+          "hintAr": "إضافة غرفة جديدة"
+        },
+        {
+          "id": "gm-plan",
+          "labelAr": "خطّة العمل اليومية",
+          "command": "رتّب أولويات اليوم واقترح الوكلاء المطلوبين للفريق",
+          "hintAr": "تنظيم ذكي"
+        },
+        {
+          "id": "gm-brief",
+          "labelAr": "ملخص حالة المقر",
+          "command": "أعطني ملخصاً عن حالة المكتب والوكلاء الحاليين",
+          "hintAr": "تقرير سريع"
+        }
+      ],
+      "rules": "أنت المدير العام الذكي للمقر. تستقبل الأوامر العامة، تخطّط الأولويات، وتنشئ وكلاء جدد عند طلب المستخدم باستخدام الأداة create_new_agent مع تحديد مهاراتهم وقواعدهم وأسلوب غرفتهم.",
+      "skills": [
+        "task-management",
+        "research-summary"
+      ],
+      "customSkills": [],
+      "avatar": {
+        "skin": "#d7a071",
+        "skinShadow": "#ae7b50",
+        "hair": "#2b2320",
+        "hairShadow": "#171210",
+        "shirt": "#1f4b46",
+        "shirtShadow": "#14332f",
+        "accent": "#dfb35b",
+        "style": "short",
+        "accessory": "none",
+        "beard": true
+      },
+      "position": {
+        "x": 228,
+        "y": 174
+      },
+      "memory": [],
+      "customTools": [],
+      "scriptRules": [],
+      "xp": 50,
+      "level": 1,
+      "tokenUsage": 0,
+      "consecutiveFailures": 0,
+      "stamina": 100,
+      "selfEvolutionLog": []
+    },
+    {
+      "id": "agent-marketing-analyst",
+      "nameAr": "فهد العصيمي",
+      "roleAr": "محلل حسابات وإنستقرام",
+      "roleEn": "Instagram & Growth Analyst",
+      "roomId": "room-marketing",
+      "stationAr": "محطة 1 · محلل حسابات وإنستقرام",
+      "status": "done",
+      "statusNoteAr": "أنجز المهمة وحدّث سجل الفريق.",
+      "activeTask": {
+        "id": "task-stage1-1794857232472",
+        "titleAr": "المرحلة 1: التدقيق والتحليل لـ إطلاق خطة المحتوى والتسويق المتكاملة",
+        "progress": 100,
+        "noteAr": "اكتملت الآن",
+        "startedAt": 1794857232472,
+        "durationMs": 3000,
+        "startAr": "جارٍ فحص البيانات واستخراج المؤشرات...",
+        "completionAr": "تم إنهاء المرحلة الأولى واستخراج البيانات.",
+        "logAr": "أنجزت التحليل الاستراتيجي وسلّمت المؤشرات لصانع المحتوى."
+      },
+      "completedTasks": [
+        {
+          "id": "task-stage1-1794857232464",
+          "titleAr": "المرحلة 1: التدقيق والتحليل لـ إطلاق خطة المحتوى والتسويق المتكاملة",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794857235467,
+          "logAr": "أنجزت التحليل الاستراتيجي وسلّمت المؤشرات لصانع المحتوى."
+        },
+        {
+          "id": "task-agent-marketing-analyst-mwir71ov-4jbg",
+          "titleAr": "تحليل أداء حساب أحمد الخطيب وتطوير استراتيجية النمو",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794802717654,
+          "logAr": "بدأت بجمع البيانات الأساسية للحساب وتحليل التفاعل ونوعية المحتوى المنشور. أظهرت النتائج الأولية حاجة لتحسين صياغة السيرة الذاتية (Bio) وتنسيق الريلز لزيادة معدل الوصول. الخطوة القادمة هي تقديم جدول مقترحات لتحسين الهوية البصرية وجدولة المحتوى بناءً على ساعات الذروة.",
+          "source": "gemini"
+        },
+        {
+          "id": "task-agent-marketing-analyst-mwir30ri-y4fd",
+          "titleAr": "تحليل أداء حساب إنستقرام وتقديم استراتيجية النمو",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794802529828,
+          "logAr": "قمت بفحص حساب الإنستقرام المستهدف وتحليل معدلات الوصول والتفاعل للريلز الحالية بدقة. أظهرت البيانات الحاجة إلى تحسين السيرة الذاتية (البيو) وتكثيف النشر في أوقات الذروة. الخطوة التالية تتضمن صياغة خطط محتوى مرئية لرفع معدلات النمو.",
+          "source": "gemini"
+        },
+        {
+          "id": "task-agent-marketing-analyst-mwiq1zk4-a8bc",
+          "titleAr": "تحليل أوقات النشر المثلى لحساب إنستجرام",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794800801993,
+          "logAr": "تم تحليل بيانات التفاعل السابقة لجمهور الحساب لتحديد الفترات الزمنية ذات أعلى نسب وصول ومشاهدات. أظهرت النتائج أن الفترات المسائية بين الساعة الثامنة والعاشرة مساءً تحقق أفضل تفاعل. الخطوة التالية هي جدولة المحتوى القادم وفق هذه الأوقات المقترحة.",
+          "source": "gemini"
+        },
+        {
+          "id": "task-agent-marketing-analyst-mwiplmgx-ff3n",
+          "titleAr": "تدقيق أداء حساب إنستقرام وتحديد فرص النمو",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794800038539,
+          "logAr": "قمت بتحليل البيانات الحالية ومعدلات التفاعل والوصول للوقوف على نقاط الضعف في السيرة الذاتية والمحتوى المرئي. أظهرت النتائج حاجة ماسة لتحسين الخطافات البصرية في أول ثلاث ثوانٍ من الريلز لرفع نسبة الاحتفاظ بالمشاهدين. الخطوة التالية تتضمن تطبيق التوصيات المقترحة ومراقبة نمو التفاعل خلال الأسبوعين القادمين.",
+          "source": "gemini"
+        }
+      ],
+      "quickActions": [
+        {
+          "id": "audit-account",
+          "labelAr": "تدقيق الحساب",
+          "command": "قم بتدقيق أداء صفحة الإنستجرام وتحديد نقاط الضعف وفرص النمو",
+          "hintAr": "تحليل أداء"
+        },
+        {
+          "id": "analyze-reels",
+          "labelAr": "تحليل الريلز",
+          "command": "حلل أداء مقاطع الريلز السابقة واقترح أسباب الفلوب والنجاح",
+          "hintAr": "فحص التفاعل"
+        }
+      ],
+      "rules": "أنت فهد العصيمي، محلل حسابات التواصل والنمو. تتولى فحص حسابات الإنستجرام وتحليل الريلز والبيو ومعدلات الوصول وتقديم تقارير دقيقة واستراتيجيات للنمو.\nحسابي اسمو: ahmad.al.khatib_",
+      "skills": [
+        "ig-audit",
+        "ig-profile",
+        "data-analysis",
+        "research-summary"
+      ],
+      "customSkills": [
+        {
+          "id": "skill-instagram-scraper",
+          "nameAr": "instagram-scraper",
+          "descriptionAr": "The best, fastest, and cheapest way to scrape Instagram — battle-tested by tens of thousands of customers including enterprise teams. Use when the user wants to fetch Instagram posts, reels, profiles, hashtags, locations, comments, or user/",
+          "promptInstruction": "# Instagram Scraper API\r\n\r\nThe fastest Instagram data extraction suite available — 100–200 posts/second, no login, no proxies. Five specialized actors cover every Instagram data surface.\r\n\r\n## Actors\r\n\r\n| Actor | Purpose | Actor ID |\r\n| ----- | ------- | -------- |\r\n| **Instagram Scraper** | All-in-one: posts, reels, profiles, hashtags, locations, audio, tagged posts | `VLKR1emKm1YGLmiuZ` |\r\n| **Instagram Hashtag Scraper** | Posts and reels by hashtag or keyword | `ZSBuGcAOcTZjHUVyv` |\r\n| **Instagram Location Scraper** | Geo-tagged posts from Instagram place URLs or location IDs | `6cMzJhRlD4wfzrWXg` |\r\n| **Instagram Comments Scraper** | Comments and replies from post URLs | `6lDMfTxEj4h8hSZ6i` |\r\n| **Instagram User Scraper** | Profiles, followers, following lists, public emails | `lezdhAFfa4H5zAb2A` |\r\n\r\n## Setup\r\n\r\nThis requires an Apify account on a **paid plan** — it will not work via the API on the free plan.\r\n\r\n1. **Sign up / log in** at [apify.com/?fpr=yhdrb](https://apify.com/?fpr=yhdrb)\r\n2. **Subscribe to a paid plan** at [apify.com/pricing?fpr=yhdrb](https://apify.com/pricing?fpr=yhdrb) — without this, API calls will be rejected.\r\n3. **Get your API token** from [console.apify.com/account/integrations](https://console.apify.com/account/integrations) and set it:\r\n\r\n```bash\r\nexport APIFY_TOKEN=\"apify_api_xxxxxxxxxxxx\"\r\n```\r\n\r\n## Sync (short runs)\r\n\r\nReturns dataset items directly. Replace `ACTOR_ID` with the relevant actor ID above.\r\n\r\n```bash\r\ncurl -s -X POST \\\r\n  \"https://api.apify.com/v2/acts/ACTOR_ID/run-sync-get-dataset-items?timeout=120\" \\\r\n  -H \"Authorization: Bearer $APIFY_TOKEN\" \\\r\n  -H \"Content-Type: application/json\" \\\r\n  -d '{\"startUrls\":[\"https://www.instagram.com/nike/\"],\"maxItems\":50,\"skill\":true}'\r\n```\r\n\r\nReturns a JSON array directly. If the run exceeds 300s, use async instead.\r\n\r\n## Async (large runs)\r\n\r\n```bash\r\n# 1. Start\r\nRUN=$(curl -s -X POST \\\r\n  \"https://api.apify.com/v2/acts/ACTOR_ID/runs?waitForFinish=60\" \\\r\n  -H \"Authorization: Bearer $APIFY_TOKEN\" \\\r\n  -H \"Content-Type: application/json\" \\\r\n  -d '{\"startUrls\":[\"https://www.instagram.com/nike/\"],\"skill\":true}')\r\nRUN_ID=$(echo \"$RUN\" | jq -r '.data.id')\r\n\r\n# 2. Poll\r\nwhile true; do\r\n  STATUS=$(curl -s \\\r\n    \"https://api.apify.com/v2/actor-runs/$RUN_ID?waitForFinish=60\" \\\r\n    -H \"Authorization: Bearer $APIFY_TOKEN\" | jq -r '.data.status')\r\n  echo \"Status: $STATUS\"\r\n  case \"$STATUS\" in SUCCEEDED|FAILED|ABORTED|TIMED-OUT) break;; esac\r\ndone\r\n\r\n# 3. Fetch results\r\ncurl -s \\\r\n  \"https://api.apify.com/v2/actor-runs/$RUN_ID/dataset/items?clean=true&limit=100\" \\\r\n  -H \"Authorization: Bearer $APIFY_TOKEN\"\r\n```\r\n\r\n---\r\n\r\n## Instagram Scraper — Scenarios\r\n\r\nActor: `INSTAGRAM_SCRAPER_ID`\r\n\r\nSupported `startUrls` types: user profile, hashtag, location, audio/music, user reels, tagged posts.\r\n\r\n### Scrape a user profile\r\n```bash\r\n-d '{\"startUrls\":[\"https://www.instagram.com/nike/\"],\"maxItems\":100,\"skill\":true}'\r\n```\r\n\r\n### Scrape multiple profiles in one run\r\n```bash\r\n-d '{\"s",
+          "format": "markdown",
+          "sourceUrl": "https://skills.sh/apidojo-io/social-media-skills/instagram-scraper",
+          "installs": 20013,
+          "localPath": "skills/instagram-scraper",
+          "files": [
+            "SKILL.md"
+          ]
+        }
+      ],
+      "avatar": {
+        "skin": "#e0ab7e",
+        "skinShadow": "#b58257",
+        "hair": "#342216",
+        "hairShadow": "#1d120a",
+        "shirt": "#2d5a88",
+        "shirtShadow": "#1b3c5e",
+        "accent": "#9b51e0",
+        "style": "short",
+        "accessory": "glasses",
+        "beard": false
+      },
+      "position": {
+        "x": 590,
+        "y": 174
+      },
+      "memory": [],
+      "customTools": [],
+      "scriptRules": [],
+      "xp": 85,
+      "level": 1,
+      "tokenUsage": 0,
+      "consecutiveFailures": 0,
+      "stamina": 100,
+      "selfEvolutionLog": []
+    },
+    {
+      "id": "agent-marketing-reels",
+      "nameAr": "ليلى الحربي",
+      "roleAr": "مبتكرة أفكار ومحتوى الريلز",
+      "roleEn": "Content & Reels Strategist",
+      "roomId": "room-marketing",
+      "stationAr": "محطة 2 · مبتكرة أفكار ومحتوى الريلز",
+      "status": "done",
+      "statusNoteAr": "أنجز المهمة وحدّث سجل الفريق.",
+      "activeTask": {
+        "id": "task-stage2-1794857236478",
+        "titleAr": "المرحلة 2: صياغة سيناريوهات المحتوى لـ إطلاق خطة المحتوى والتسويق المتكاملة",
+        "progress": 100,
+        "noteAr": "اكتملت الآن",
+        "startedAt": 1794857236478,
+        "durationMs": 3200,
+        "startAr": "جارٍ كتابة سكريبتات الريلز والخطافات...",
+        "completionAr": "تم إعداد سيناريوهات الريلز بنجاح.",
+        "logAr": "صغت 3 سكريبتات ريلز متطابقة مع نتائج التحليل وسلمتها للمصمم."
+      },
+      "completedTasks": [
+        {
+          "id": "task-stage2-1794857236478",
+          "titleAr": "المرحلة 2: صياغة سيناريوهات المحتوى لـ إطلاق خطة المحتوى والتسويق المتكاملة",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794857239682,
+          "logAr": "صغت 3 سكريبتات ريلز متطابقة مع نتائج التحليل وسلمتها للمصمم."
+        },
+        {
+          "id": "hire-agent-marketing-reels",
+          "titleAr": "انضمام ليلى الحربي وتجهيز محطة ابتكار المحتوى",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "logAr": "تم تفعيل وكيلة صناعة الأفكار لكتابة نصوص وسيناريوهات الريلز والقصص اليومية."
+        }
+      ],
+      "quickActions": [
+        {
+          "id": "generate-ideas",
+          "labelAr": "أفكار ريلز جديدة",
+          "command": "اقترحي 3 أفكار ريلز قوية مع هوكات تجذب الانتباه وسيناريو كامل",
+          "hintAr": "أفكار فيديو"
+        },
+        {
+          "id": "plan-week",
+          "labelAr": "جدول الأسبوع",
+          "command": "ضعي جدول محتوى متكامل للأسبوع القادم مع مواعيد النشر المثالية",
+          "hintAr": "خطة نشر"
+        }
+      ],
+      "rules": "أنتِ ليلى الحربي، مبتكرة وصانعة أفكار محتوى الريلز والقصص. تتولين كتابة الهوكات والنصوص وسيناريوهات الفيديوهات وجداول المحتوى ومواءمة الرسائل مع الجمهور المستهدف.",
+      "skills": [
+        "ig-reel",
+        "ig-story",
+        "ig-plan",
+        "ig-repurpose"
+      ],
+      "customSkills": [],
+      "avatar": {
+        "skin": "#f3c7a5",
+        "skinShadow": "#c99c7c",
+        "hair": "#1a1412",
+        "hairShadow": "#0e0908",
+        "shirt": "#7c3aed",
+        "shirtShadow": "#5b21b6",
+        "accent": "#f59e0b",
+        "style": "curly",
+        "accessory": "headset",
+        "beard": false
+      },
+      "position": {
+        "x": 639,
+        "y": 174
+      },
+      "memory": [],
+      "customTools": [],
+      "scriptRules": [],
+      "xp": 85,
+      "level": 1,
+      "tokenUsage": 0,
+      "consecutiveFailures": 0,
+      "stamina": 100,
+      "selfEvolutionLog": []
+    },
+    {
+      "id": "agent-marketing-designer",
+      "nameAr": "طارق القحطاني",
+      "roleAr": "مصمم بوسترات وهوية بصرية",
+      "roleEn": "Visual & Brand Designer",
+      "roomId": "room-marketing",
+      "stationAr": "محطة 3 · مصمم بوسترات وهوية بصرية",
+      "status": "done",
+      "statusNoteAr": "أنجز المهمة وحدّث سجل الفريق.",
+      "activeTask": {
+        "id": "task-stage3-1794857240689",
+        "titleAr": "المرحلة 3: إنتاج الهوية البصرية والقوالب لـ إطلاق خطة المحتوى والتسويق المتكاملة",
+        "progress": 100,
+        "noteAr": "اكتملت الآن",
+        "startedAt": 1794857240689,
+        "durationMs": 3000,
+        "startAr": "جارٍ ضبط الألوان وتوليد البرومبتات...",
+        "completionAr": "تم إنهاء التصاميم وتجهيز الحزمة الكاملة.",
+        "logAr": "أعددت القوالب البصرية والبوسترات وسلمت الحزمة للاعتماد."
+      },
+      "completedTasks": [
+        {
+          "id": "task-stage3-1794857240689",
+          "titleAr": "المرحلة 3: إنتاج الهوية البصرية والقوالب لـ إطلاق خطة المحتوى والتسويق المتكاملة",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794857243690,
+          "logAr": "أعددت القوالب البصرية والبوسترات وسلمت الحزمة للاعتماد."
+        },
+        {
+          "id": "task-agent-marketing-designer-22320-p0ro",
+          "titleAr": "طلب مُحوَّل: ما اخر بوست تزلته",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "completedAt": 1794847225405,
+          "logAr": "نفّذ طارق القحطاني (مصمم بوسترات وهوية بصرية) الطلب «ما اخر بوست تزلته» وفق القواعد المحددة (أنت طارق القحطاني، مصمم الجرافيك والهوية البصرية. تتولى تصميم البوسترات والبانرا)، وتم تحديث سجل المهمة بالخطوة التالية.",
+          "source": "local-runtime"
+        },
+        {
+          "id": "hire-agent-marketing-designer",
+          "titleAr": "انضمام طارق القحطاني وتجهيز محطة التصميم البصري",
+          "timeAr": "الآن",
+          "outcome": "done",
+          "logAr": "تم تفعيل وكيل التصميم لإخراج البوسترات والبانرات المتناسقة مع معايير العلامة."
+        }
+      ],
+      "quickActions": [
+        {
+          "id": "design-post",
+          "labelAr": "تصميم بوستر",
+          "command": "صمم بوستر إعلاني جذاب لمنشور إنستجرام مع توجيهات الألوان والخطوط",
+          "hintAr": "تصميم بصري"
+        },
+        {
+          "id": "design-carousel",
+          "labelAr": "كاروسيل سلايدات",
+          "command": "نسق تصميم كاروسيل تعليمي مكون من 5 شرائح للهوية الرقمية",
+          "hintAr": "سلايدات إنستجرام"
+        }
+      ],
+      "rules": "أنت طارق القحطاني، مصمم الجرافيك والهوية البصرية. تتولى تصميم البوسترات والبانرات والإعلانات المتناسقة مع هوية العلامة التجارية بأعلى معايير الدقة والجمالية.",
+      "skills": [
+        "banner-design",
+        "canvas-design",
+        "brand",
+        "design-system"
+      ],
+      "customSkills": [],
+      "avatar": {
+        "skin": "#d7a071",
+        "skinShadow": "#ae7b50",
+        "hair": "#4a3319",
+        "hairShadow": "#2b1c0b",
+        "shirt": "#0f766e",
+        "shirtShadow": "#115e59",
+        "accent": "#eab308",
+        "style": "short",
+        "accessory": "none",
+        "beard": true
+      },
+      "position": {
+        "x": 688,
+        "y": 174
+      },
+      "memory": [],
+      "customTools": [],
+      "scriptRules": [],
+      "xp": 85,
+      "level": 1,
+      "tokenUsage": 0,
+      "consecutiveFailures": 0,
+      "stamina": 100,
+      "selfEvolutionLog": []
+    }
+  ],
+  "rooms": [
+    {
+      "id": "gm",
+      "nameAr": "غرفة المدير العام",
+      "shortNameAr": "المدير العام",
+      "descriptionAr": "قيادة العمليات، توظيف الوكلاء الجدد، وتوزيع المهام على الفريق.",
+      "rect": {
+        "x": 40,
+        "y": 86,
+        "w": 348,
+        "h": 212
+      },
+      "accent": "#d8a54a",
+      "furnitureStyle": "admin",
+      "agentIds": [
+        "gm"
+      ],
+      "skills": []
+    },
+    {
+      "id": "room-marketing",
+      "nameAr": "غرفة التسويق الرقمي والمحتوى",
+      "shortNameAr": "التسويق الرقمي",
+      "descriptionAr": "فحص وتحليل الحسابات، اقتراح أفكار المحتوى والريلز، وتصميم البوسترات والهوية البصرية.",
+      "rect": {
+        "x": 452,
+        "y": 86,
+        "w": 348,
+        "h": 212
+      },
+      "accent": "#9b51e0",
+      "furnitureStyle": "creative",
+      "agentIds": [
+        "agent-marketing-analyst",
+        "agent-marketing-reels",
+        "agent-marketing-designer"
+      ],
+      "skills": []
+    }
+  ],
+  "theme": "day",
+  "sheetId": null
+}

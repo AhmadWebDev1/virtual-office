@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "skills": {
+    "humanizer-zh": {
+      "source": "op7418/Humanizer-zh",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "19fe06f48c6c540268b33c3f88b26439506fa4186d1c0b27fda57acb3876dd66",
+      "installMode": "copy"
+    },
+    "instagram-scraper": {
+      "source": "apidojo-io/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/instagram-scraper/SKILL.md",
+      "computedHash": "b9380c8838293b8c86b19f88dab4a0d33067aca93cb73cb6f7e64536cb98d91b",
+      "installMode": "copy"
+    },
+    "karpathy-guidelines": {
+      "source": "multica-ai/andrej-karpathy-skills",
+      "sourceType": "github",
+      "skillPath": "skills/karpathy-guidelines/SKILL.md",
+      "computedHash": "e64131803b0a34b8c39afc11338a74f8305cf8f69f750620bdf6cb38f6865c52",
+      "installMode": "copy"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "computedHash": "4f68ae07187fb0d1fb78c88b503d089da4cf5a9d9625d1f2e425b1590bf96d92",
+      "installMode": "copy"
+    }
+  }
+}

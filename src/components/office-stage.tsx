@@ -22,12 +22,14 @@ import {
   type RoomId,
   type ThemeMode,
   type WorldDimensions,
+  type FloorDataPulse,
 } from "@/data/agents";
 import {
   ChartIcon,
   CodeIcon,
   CrownIcon,
   FitIcon,
+  FullscreenIcon,
   MailIcon,
   PaletteIcon,
   ZoomInIcon,
@@ -44,14 +46,38 @@ export interface AgentSpeech {
   text: string;
 }
 
-export interface OfficeStageProps {
+export interface FlyingPacket {
+  id: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  progress: number;
+  labelAr: string;
+}
+
+export interface WalkingMessenger {
+  id: string;
+  x: number;
+  y: number;
+  targetRoomId: string;
+  labelAr: string;
+  step: number;
+}
+
+interface OfficeStageProps {
   agents: Agent[];
   rooms: Room[];
   filter: AgentStatus | "all";
   theme: ThemeMode;
   speeches: Partial<Record<AgentId, AgentSpeech>>;
+  flyingPackets?: FlyingPacket[];
+  walkingMessenger?: WalkingMessenger | null;
   onOpenAgent: (agentId: AgentId) => void;
   onOpenRoom: (roomId: RoomId) => void;
+  onOpenRoomSettings?: (roomId: RoomId) => void;
+  showCircuitWires?: boolean;
+  floorPulses?: FloorDataPulse[];
 }
 
 export interface OfficeStageHandle {
@@ -127,7 +153,20 @@ function easeOutCubic(value: number) {
 }
 
 const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function OfficeStage(
-  { agents, rooms, filter, theme, speeches, onOpenAgent, onOpenRoom },
+  {
+    agents,
+    rooms,
+    filter,
+    theme,
+    speeches,
+    flyingPackets = [],
+    walkingMessenger = null,
+    onOpenAgent,
+    onOpenRoom,
+    onOpenRoomSettings,
+    showCircuitWires = false,
+    floorPulses = [],
+  },
   ref,
 ) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -277,6 +316,24 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
 
   const zoomIn = useCallback(() => zoomBy(1.3), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(1 / 1.3), [zoomBy]);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      void document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      void document.exitFullscreen().catch(() => {});
+    }
+  }, []);
 
   useImperativeHandle(
     ref,
@@ -639,12 +696,11 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
         onPointerCancel={finishPointer}
       />
 
-      <div className="stage-meta" aria-hidden="true">
-        <span className="stage-meta-dot" />
-        <span>{rooms.length} {rooms.length === 1 ? "غرفة" : rooms.length === 2 ? "غرفتان" : "غرف"}</span>
-        <span className="stage-meta-sep">·</span>
-        <span>{agents.length} {agents.length === 1 ? "وكيل" : agents.length === 2 ? "وكيلان" : "وكلاء"}</span>
-      </div>
+      <div className="office-scanlines" aria-hidden="true" />
+      <span className="office-frame-corner office-frame-tl" aria-hidden="true" />
+      <span className="office-frame-corner office-frame-tr" aria-hidden="true" />
+      <span className="office-frame-corner office-frame-bl" aria-hidden="true" />
+      <span className="office-frame-corner office-frame-br" aria-hidden="true" />
 
       <div className="room-sign-layer">
         {rooms.map((room, index) => {
@@ -657,32 +713,144 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
           const top = (room.rect.y - 10 - camera.y) * camera.scale;
           if (left < -200 || left > viewportRef.current.width + 200) return null;
           return (
-            <button
+            <div
               key={room.id}
-              type="button"
-              className="room-sign"
+              className="room-sign-wrapper"
               style={
                 {
+                  position: "absolute",
                   left,
                   top,
-                  "--room-accent": room.accent,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  transform: "translateX(-50%)",
+                  zIndex: 25,
                 } as CSSProperties
               }
-              onClick={() => onOpenRoom(room.id)}
-              aria-label={`فتح ${room.nameAr}`}
             >
-              <span className="room-sign-grip" aria-hidden="true" />
-              <span className="room-sign-icon">
-                <Icon width={13} height={13} />
-              </span>
-              <span className="room-sign-name">{room.nameAr}</span>
-              <span className="room-sign-code" aria-hidden="true">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-            </button>
+              <button
+                type="button"
+                className="room-sign"
+                style={
+                  {
+                    "--room-accent": room.accent,
+                  } as CSSProperties
+                }
+                onClick={() => onOpenRoom(room.id)}
+                aria-label={`فتح ${room.nameAr}`}
+              >
+                <span className="room-sign-grip" aria-hidden="true" />
+                <span className="room-sign-icon">
+                  <Icon width={13} height={13} />
+                </span>
+                <span className="room-sign-name">{room.nameAr}</span>
+                <span className="room-sign-code" aria-hidden="true">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+              </button>
+              {onOpenRoomSettings && (
+                <button
+                  type="button"
+                  className="room-sign-settings-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenRoomSettings(room.id);
+                  }}
+                  title={`إعدادات وقواعد قسم ${room.nameAr}`}
+                  aria-label={`إعدادات ${room.nameAr}`}
+                >
+                  ⚙
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
+
+      {/* 16-Bit Circuit Wires Floor Overlay */}
+      {showCircuitWires && (
+        <svg
+          className="stage-circuit-svg"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 15,
+          }}
+        >
+          <g transform={`translate(${-camera.x * camera.scale}, ${-camera.y * camera.scale}) scale(${camera.scale})`}>
+            {/* Spine Bus Wire */}
+            <path
+              d="M 420 114 L 420 540"
+              stroke="#0ea5e9"
+              strokeWidth="3"
+              strokeDasharray="4 2"
+              fill="none"
+              opacity="0.85"
+            />
+            {/* Top Coffee Corner Node */}
+            <circle cx="420" cy="114" r="5" fill="#f59e0b" stroke="#78350f" strokeWidth="1.5" />
+            <text x="420" y="104" textAnchor="middle" fill="#fef08a" fontSize="8" fontWeight="bold">
+              ☕ ركن القهوة
+            </text>
+
+            {/* Traces to Agent Desks */}
+            {agents.map((agent) => (
+              <g key={`circuit-${agent.id}`}>
+                <path
+                  d={`M 420 ${agent.position.y} L ${agent.position.x} ${agent.position.y}`}
+                  stroke="#38bdf8"
+                  strokeWidth="2"
+                  strokeDasharray="3 2"
+                  fill="none"
+                  opacity="0.75"
+                />
+                <circle cx="420" cy={agent.position.y} r="2.5" fill="#38bdf8" />
+                <rect
+                  x={agent.position.x - 3}
+                  y={agent.position.y - 3}
+                  width="6"
+                  height="6"
+                  fill="#0284c7"
+                  stroke="#38bdf8"
+                  strokeWidth="1"
+                />
+              </g>
+            ))}
+
+            {/* Live Data Pulses Along Wires */}
+            {floorPulses.map((pulse) => {
+              const midX = 420;
+              const t = pulse.progress;
+              let px = pulse.fromX;
+              let py = pulse.fromY;
+              if (t < 0.5) {
+                const subT = t / 0.5;
+                px = pulse.fromX + (midX - pulse.fromX) * subT;
+                py = pulse.fromY;
+              } else {
+                const subT = (t - 0.5) / 0.5;
+                px = midX + (pulse.toX - midX) * subT;
+                py = pulse.fromY + (pulse.toY - pulse.fromY) * subT;
+              }
+              return (
+                <g key={pulse.id} className="live-circuit-pulse">
+                  <circle cx={px} cy={py} r="5" fill={pulse.color} opacity="0.9" />
+                  <circle cx={px} cy={py} r="2" fill="#ffffff" />
+                  {pulse.labelAr && (
+                    <text x={px} y={py - 7} textAnchor="middle" fill={pulse.color} fontSize="8.5" fontWeight="bold">
+                      {pulse.labelAr}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      )}
 
       <div className="agent-label-layer">
         {agents.map((agent) => {
@@ -706,6 +874,49 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
                 zIndex: 30 + Math.round(agent.position.y),
               }}
             >
+              {/* Emergency Alert Beacon on 3+ Failures or Red Desk LED */}
+              {((agent.consecutiveFailures && agent.consecutiveFailures >= 3) || agent.deskLedColor === "red") && (
+                <div className="desk-emergency-beacon beacon-pulse-red" role="alert" title="تنبيه: تعثر متكرر في المهام - تصعيد للمدير">
+                  <span className="beacon-siren-dot" />
+                  <span className="beacon-alert-text">🚨 طوارئ</span>
+                </div>
+              )}
+              {/* Level & Rank Star Badge */}
+              {((agent.level && agent.level >= 2) || (agent.rankBadge && agent.rankBadge !== "none")) && (
+                <div
+                  className="agent-stage-rank-badge"
+                  title={`مستوى ${agent.level || 1} - رتبة ${agent.rankBadge === "crown" ? "تاج القيادة" : "نجم التميز"}`}
+                >
+                  <span>{agent.rankBadge === "crown" ? "👑" : "⭐"}</span>
+                  <span className="rank-lvl-num">LV{agent.level || 1}</span>
+                </div>
+              )}
+              {/* Steaming Coffee Break Cooldown Badge */}
+              {agent.status === "cooldown" && (
+                <div className="agent-stage-cooldown-badge pulse-badge" role="status">
+                  <span className="steaming-cup">☕</span>
+                  <span className="cooldown-timer">
+                    استراحة {Math.max(0, Math.ceil(((agent.cooldownUntil ?? Date.now() + 15000) - Date.now()) / 1000))}ث
+                  </span>
+                </div>
+              )}
+              {agent.status === "waiting_approval" && (
+                <div className="agent-stage-approval-badge pulse-badge" role="status">
+                  <span className="approval-hand">✋</span>
+                  <span>موافقة مطلوبة</span>
+                </div>
+              )}
+              {agent.schedule?.enabled && (
+                <div className="agent-stage-schedule-badge">
+                  <span>⏱</span>
+                  <span>
+                    {Math.max(
+                      0,
+                      Math.ceil((agent.schedule.nextRunTimestamp - Date.now()) / 60_000),
+                    )} د
+                  </span>
+                </div>
+              )}
               {speech ? (
                 <div key={speech.id} className="speech-bubble" role="status">
                   {speech.text}
@@ -742,43 +953,112 @@ const OfficeStage = forwardRef<OfficeStageHandle, OfficeStageProps>(function Off
                   style={{ width: `${agent.activeTask?.progress ?? 0}%` }}
                   aria-hidden="true"
                 />
+                {/* Segmented Stamina Mini Bar */}
+                <div
+                  className="agent-chip-stamina-bar"
+                  title={`طاقة الوكيل: ${agent.stamina ?? 100}%`}
+                >
+                  <div
+                    className={`stamina-fill ${(agent.stamina ?? 100) > 60 ? "high" : (agent.stamina ?? 100) > 25 ? "mid" : "low"}`}
+                    style={{ width: `${agent.stamina ?? 100}%` }}
+                  />
+                </div>
               </button>
             </div>
           );
         })}
       </div>
 
-      <div className="camera-controls" aria-label="أدوات الكاميرا">
-        <button type="button" className="camera-button" onClick={zoomOut} aria-label="تصغير">
-          <ZoomOutIcon width={17} height={17} />
+      {/* Walking Messenger Animation Layer */}
+      {walkingMessenger && (
+        <div
+          className="stage-walking-messenger"
+          style={{
+            left: (walkingMessenger.x - camera.x) * camera.scale,
+            top: (walkingMessenger.y - 36 - camera.y) * camera.scale,
+            transform: `scale(${camera.scale})`,
+            zIndex: 45,
+          }}
+        >
+          <div className="messenger-speech-tag">
+            <span>📜 {walkingMessenger.labelAr}</span>
+          </div>
+          <div className={`messenger-pixel-sprite step-${walkingMessenger.step % 2}`} />
+        </div>
+      )}
+
+      {/* Flying Data Packets Collaboration Layer */}
+      {flyingPackets.map((packet) => {
+        const posX = packet.fromX + (packet.toX - packet.fromX) * packet.progress;
+        const arc = -Math.sin(packet.progress * Math.PI) * 55;
+        const posY = packet.fromY + (packet.toY - packet.fromY) * packet.progress + arc;
+        const screenX = (posX - camera.x) * camera.scale;
+        const screenY = (posY - camera.y) * camera.scale;
+
+        return (
+          <div
+            key={packet.id}
+            className="flying-packet-wrapper"
+            style={{
+              left: screenX,
+              top: screenY,
+              transform: `scale(${camera.scale})`,
+              zIndex: 48,
+            }}
+          >
+            <div className="packet-envelope-glow">✉</div>
+            <div className="packet-spark-trail" />
+            <span className="packet-payload-tag">{packet.labelAr}</span>
+          </div>
+        );
+      })}
+
+      <div
+        className="camera-pad pixel-panel"
+        role="group"
+        aria-label="أدوات الكاميرا"
+      >
+        <button
+          type="button"
+          className="camera-button pixel-btn"
+          onClick={zoomOut}
+          aria-label="تصغير"
+          title="تصغير"
+        >
+          <ZoomOutIcon width={15} height={15} />
         </button>
         <button
           type="button"
-          className="camera-button camera-button-fit"
+          className="camera-button camera-button-fit pixel-btn"
           onClick={fitAll}
           aria-label="إعادة ضبط الكاميرا وعرض المكتب كاملاً"
           title="عرض المكتب كاملاً"
         >
-          <FitIcon width={16} height={16} />
+          <FitIcon width={14} height={14} />
           <span>ملاءمة</span>
         </button>
-        <button type="button" className="camera-button" onClick={zoomIn} aria-label="تكبير">
-          <ZoomInIcon width={17} height={17} />
+        <button
+          type="button"
+          className="camera-button camera-button-fullscreen pixel-btn"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? "إنهاء ملء الشاشة" : "ملء الشاشة"}
+          title={isFullscreen ? "إنهاء ملء الشاشة" : "ملء الشاشة"}
+        >
+          <FullscreenIcon width={13} height={13} />
+          <span>{isFullscreen ? "نافذة" : "شاشة كاملة"}</span>
+        </button>
+        <button
+          type="button"
+          className="camera-button pixel-btn"
+          onClick={zoomIn}
+          aria-label="تكبير"
+          title="تكبير"
+        >
+          <ZoomInIcon width={15} height={15} />
         </button>
         <span className="camera-zoom" aria-hidden="true">
           {zoomPercent.toString()}%
         </span>
-      </div>
-
-      <div className="stage-hint" aria-hidden="true">
-        <span className="stage-hint-icon">
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor">
-            <path d="M10 2.5v6M10 2.5 7.5 5M10 2.5 12.5 5" strokeWidth="1.5" />
-            <rect x="2.5" y="9" width="15" height="8.5" rx="1.5" strokeWidth="1.3" />
-            <path d="M10 9v8.5" strokeWidth="1.1" />
-          </svg>
-        </span>
-        اسحب للتنقّل · عجلة الفأرة أو إصبعان للتقريب
       </div>
 
       {!ready ? (

@@ -4,8 +4,11 @@ import { parseSpreadsheetId } from "./sheet-utils";
 import { formatGoogleSignInError, isSameOriginAuthHost } from "./workspace-auth-error";
 import {
   executeAgentCommand,
+  isCreateAgentCommand,
+  loadLocalSkillPackageDetails,
   localAgentRuntime,
   parseEmailCommandIntent,
+  splitMultipleAgentCreationClauses,
 } from "./agent-runtime";
 import {
   INITIAL_AGENTS,
@@ -15,7 +18,23 @@ import {
   getWorldDimensions,
   type Agent,
 } from "../data/agents";
-import { parseCustomSkillInput } from "../data/skills";
+import {
+  formatInstallCount,
+  getAgentSkillSuggestions,
+  parseCustomSkillInput,
+} from "../data/skills";
+import {
+  DISCIPLINE_SEARCH_KEYWORDS,
+  listRelativeFiles,
+  resolveDiscipline,
+  scanLocalProjectSkills,
+} from "../app/api/skills/route";
+import { clearOfficeState, loadOfficeState, saveOfficeState } from "./office-storage";
+import {
+  clearServerOfficeState,
+  getServerOfficeState,
+  saveServerOfficeState,
+} from "./server-office-storage";
 import type { AgentPromptProfile } from "./agent-contracts";
 
 function toPromptProfile(agent: Agent, roomNameAr: string): AgentPromptProfile {
@@ -575,3 +594,596 @@ test("isSameOriginAuthHost enables same-origin proxy only on hosted run.app/fire
   assert.equal(isSameOriginAuthHost("lunar-prism-423012-v6.web.app"), true);
   assert.equal(isSameOriginAuthHost("localhost"), false);
 });
+
+test("dynamic routing correctly selects sales agent for sales commands and GM for hiring", async () => {
+  const hireSalesRes = await executeAgentCommand(
+    {
+      target: "auto",
+      command: "وظف مسؤول مبيعات",
+      agents: [toPromptProfile(INITIAL_AGENTS[0], INITIAL_ROOMS[0].nameAr)],
+    },
+    localAgentRuntime,
+  );
+
+  assert.equal(hireSalesRes.ok, true);
+  assert.equal(hireSalesRes.agentId, "gm");
+  assert.ok(hireSalesRes.createdAgent);
+  assert.equal(hireSalesRes.createdAgent.furnitureStyle, "creative");
+  assert.match(hireSalesRes.createdAgent.roleAr, /مبيعات/);
+
+  const { agent: salesAgent, room: salesRoom } = createAgentAndRoomFromSpec(
+    hireSalesRes.createdAgent,
+    INITIAL_AGENTS,
+    INITIAL_ROOMS,
+  );
+
+  // Auto-routing with both GM and Sales agent:
+  // 1. Sales pitch command should route to Sales agent
+  const salesTask = await executeAgentCommand(
+    {
+      target: "auto",
+      command: "جهّز عرض أسعار واقترح استراتيجية للتواصل مع العملاء الجدد",
+      agents: [
+        toPromptProfile(INITIAL_AGENTS[0], INITIAL_ROOMS[0].nameAr),
+        toPromptProfile(salesAgent, salesRoom.nameAr),
+      ],
+    },
+    localAgentRuntime,
+  );
+  assert.equal(salesTask.ok, true);
+  assert.equal(salesTask.agentId, salesAgent.id);
+  assert.equal(salesTask.routedBy, "gm");
+
+  // 2. Hiring another agent should route to GM
+  const newHireTask = await executeAgentCommand(
+    {
+      target: "auto",
+      command: "أنشئ وكيل مصمم جرافيك واجهات",
+      agents: [
+        toPromptProfile(INITIAL_AGENTS[0], INITIAL_ROOMS[0].nameAr),
+        toPromptProfile(salesAgent, salesRoom.nameAr),
+      ],
+    },
+    localAgentRuntime,
+  );
+  assert.equal(newHireTask.ok, true);
+  assert.equal(newHireTask.agentId, "gm");
+  assert.ok(newHireTask.createdAgent);
+});
+
+test("localStorage office state persistence and reset works seamlessly", () => {
+  const storageMap = new Map<string, string>();
+  const mockStorage: Storage = {
+    getItem: (key: string) => storageMap.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storageMap.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storageMap.delete(key);
+    },
+    clear: () => {
+      storageMap.clear();
+    },
+    key: (index: number) => Array.from(storageMap.keys())[index] ?? null,
+    get length() {
+      return storageMap.size;
+    },
+  };
+
+  const originalWindow = globalThis.window;
+  // @ts-expect-error Mocking window.localStorage in node test environment
+  globalThis.window = { localStorage: mockStorage };
+
+  try {
+    // 1. Initially no saved state
+    assert.equal(loadOfficeState(INITIAL_AGENTS, INITIAL_ROOMS), null);
+
+    // 2. Create a dynamic agent and save
+    const { agent: newAgent, room: newRoom } = createAgentAndRoomFromSpec(
+      {
+        nameAr: "فهد العازمي",
+        roleAr: "مبرمج ويب",
+        roomNameAr: "غرفة البرمجة",
+        rules: "الالتزام بأعلى معايير الأمان وجودة الأكواد.",
+        skills: ["code-writing"],
+        themeColor: "#5aa9e6",
+        furnitureStyle: "tech",
+      },
+      INITIAL_AGENTS,
+      INITIAL_ROOMS,
+    );
+
+    const updatedAgents = [...INITIAL_AGENTS, newAgent];
+    const updatedRooms = [...INITIAL_ROOMS, newRoom];
+    saveOfficeState(updatedAgents, updatedRooms);
+
+    // 3. Reload state from storage
+    const restored = loadOfficeState(INITIAL_AGENTS, INITIAL_ROOMS);
+    assert.ok(restored);
+    assert.equal(restored.agents.length, 2);
+    assert.equal(restored.rooms.length, 2);
+    assert.equal(restored.agents[1].nameAr, "فهد العازمي");
+    assert.equal(restored.rooms[1].furnitureStyle, "tech");
+
+    // 4. Clear state (Reset Office)
+    clearOfficeState();
+    assert.equal(loadOfficeState(INITIAL_AGENTS, INITIAL_ROOMS), null);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("createAgentAndRoomFromSpec supports placing multiple agents in the same room", () => {
+  // 1. Create first agent (Sara in Marketing Room)
+  const result1 = createAgentAndRoomFromSpec(
+    {
+      nameAr: "سارة المطيري",
+      roleAr: "مديرة إنستغرام",
+      roomNameAr: "غرفة التسويق والمحتوى",
+      rules: "نشر محتوى أسبوعي جذاب.",
+      skills: ["data-analysis"],
+      themeColor: "#e58a62",
+      furnitureStyle: "creative",
+    },
+    INITIAL_AGENTS,
+    INITIAL_ROOMS,
+  );
+
+  assert.equal(result1.isNewRoom, true);
+  const marketingRoom = result1.room;
+  const sara = result1.agent;
+  const agentsState1 = [...INITIAL_AGENTS, sara];
+  const roomsState1 = [...INITIAL_ROOMS, marketingRoom];
+
+  // 2. Create second agent (Layla in the SAME room by roomNameAr)
+  const result2 = createAgentAndRoomFromSpec(
+    {
+      nameAr: "ليلى الحربي",
+      roleAr: "مصممة بوسترات",
+      roomNameAr: "غرفة التسويق والمحتوى",
+      rules: "تصميم بوسترات عالية الجودة.",
+      skills: ["research-summary"],
+      themeColor: "#e58a62",
+      furnitureStyle: "creative",
+    },
+    agentsState1,
+    roomsState1,
+  );
+
+  assert.equal(result2.isNewRoom, false);
+  assert.equal(result2.room.id, marketingRoom.id);
+  assert.equal(result2.room.agentIds.length, 2);
+  assert.equal(result2.room.agentIds[0], sara.id);
+  assert.equal(result2.room.agentIds[1], result2.agent.id);
+
+  // Existing agent (Sara) should have been repositioned to Station 1
+  assert.equal(result2.updatedExistingAgents.length, 1);
+  const updatedSara = result2.updatedExistingAgents[0];
+  assert.equal(updatedSara.id, sara.id);
+  assert.equal(updatedSara.position.x, marketingRoom.rect.x + 138);
+
+  // New agent (Layla) positioned at Station 2
+  const layla = result2.agent;
+  assert.equal(layla.roomId, marketingRoom.id);
+  assert.equal(layla.position.x, marketingRoom.rect.x + 236);
+  assert.notEqual(updatedSara.position.x, layla.position.x);
+
+  // 3. Create third agent with targetRoomId explicitly
+  const result3 = createAgentAndRoomFromSpec(
+    {
+      targetRoomId: marketingRoom.id,
+      nameAr: "نورة القحطاني",
+      roleAr: "كاتبة محتوى",
+      roomNameAr: "غرفة جديدة لكن نوجهها بالمعرف",
+      rules: "صياغة نصوص تسويقية.",
+      skills: ["email-drafting"],
+      themeColor: "#e58a62",
+      furnitureStyle: "creative",
+    },
+    [INITIAL_AGENTS[0], updatedSara, layla],
+    [INITIAL_ROOMS[0], result2.room],
+  );
+
+  assert.equal(result3.isNewRoom, false);
+  assert.equal(result3.room.id, marketingRoom.id);
+  assert.equal(result3.room.agentIds.length, 3);
+  assert.equal(result3.updatedExistingAgents.length, 2);
+});
+
+test("loadOfficeState automatically deduplicates rooms with identical normalized names", () => {
+  const storageMap = new Map<string, string>();
+  const mockStorage: Storage = {
+    getItem: (key: string) => storageMap.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storageMap.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storageMap.delete(key);
+    },
+    clear: () => {
+      storageMap.clear();
+    },
+    key: (index: number) => Array.from(storageMap.keys())[index] ?? null,
+    get length() {
+      return storageMap.size;
+    },
+  };
+
+  const originalWindow = globalThis.window;
+  // @ts-expect-error Mocking window.localStorage in node test environment
+  globalThis.window = { localStorage: mockStorage };
+
+  try {
+    // Simulate legacy/buggy persisted state where two rooms exist with identical names
+    const legacyCorruptedPayload = {
+      version: 2,
+      savedAt: Date.now(),
+      rooms: [
+        {
+          id: "gm",
+          nameAr: "غرفة المدير العام",
+          shortNameAr: "المدير العام",
+          descriptionAr: "الإدارة",
+          furnitureStyle: "admin",
+          accent: "#d8a54a",
+          agentIds: ["gm"],
+        },
+        {
+          id: "room-sara",
+          nameAr: "غرفة التسويق والمحتوى",
+          shortNameAr: "التسويق",
+          descriptionAr: "تسويق",
+          furnitureStyle: "creative",
+          accent: "#e58a62",
+          agentIds: ["sara"],
+        },
+        {
+          id: "room-layla",
+          nameAr: "غرفة التسويق والمحتوى",
+          shortNameAr: "التسويق",
+          descriptionAr: "تسويق",
+          furnitureStyle: "creative",
+          accent: "#e58a62",
+          agentIds: ["layla"],
+        },
+      ],
+      agents: [
+        {
+          id: "gm",
+          nameAr: "سلمان العتيبي",
+          roleAr: "المدير العام",
+          roomId: "gm",
+          status: "idle",
+          skills: [],
+          rules: "",
+        },
+        {
+          id: "sara",
+          nameAr: "سارة المطيري",
+          roleAr: "مديرة حساب إنستغرام",
+          roomId: "room-sara",
+          status: "idle",
+          skills: [],
+          rules: "",
+        },
+        {
+          id: "layla",
+          nameAr: "ليلى الحربي",
+          roleAr: "مصممة بوسترات",
+          roomId: "room-layla",
+          status: "idle",
+          skills: [],
+          rules: "",
+        },
+      ],
+    };
+
+    mockStorage.setItem("virtual-office-state-v2", JSON.stringify(legacyCorruptedPayload));
+
+    const restored = loadOfficeState(INITIAL_AGENTS, INITIAL_ROOMS);
+    assert.ok(restored);
+
+    // Deduplication should result in exactly 2 rooms (GM + 1 merged Marketing room)
+    assert.equal(restored.rooms.length, 2);
+    assert.equal(restored.rooms[1].nameAr, "غرفة التسويق والمحتوى");
+    assert.equal(restored.rooms[1].agentIds.length, 2);
+
+    // Both Sara and Layla should be mapped to the canonical room
+    assert.equal(restored.agents.length, 3);
+    const restoredSara = restored.agents.find((a) => a.id === "sara")!;
+    const restoredLayla = restored.agents.find((a) => a.id === "layla")!;
+    assert.equal(restoredSara.roomId, "room-sara");
+    assert.equal(restoredLayla.roomId, "room-sara");
+
+    // Both agents must have distinct station positions
+    assert.notEqual(restoredSara.position.x, restoredLayla.position.x);
+    assert.equal(restoredSara.position.x, restored.rooms[1].rect.x + 138);
+    assert.equal(restoredLayla.position.x, restored.rooms[1].rect.x + 236);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("formatInstallCount formats install counts cleanly", () => {
+  assert.equal(formatInstallCount(1430000), "1.4M");
+  assert.equal(formatInstallCount(1000000), "1M");
+  assert.equal(formatInstallCount(865485), "865.5K");
+  assert.equal(formatInstallCount(450), "450");
+  assert.equal(formatInstallCount(undefined), "");
+});
+
+test("custom skills with find-skills sourceUrl and installs persist cleanly", () => {
+  const storageMap = new Map<string, string>();
+  const mockStorage: Storage = {
+    getItem: (key: string) => storageMap.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storageMap.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storageMap.delete(key);
+    },
+    clear: () => {
+      storageMap.clear();
+    },
+    key: (index: number) => Array.from(storageMap.keys())[index] ?? null,
+    get length() {
+      return storageMap.size;
+    },
+  };
+
+  const originalWindow = globalThis.window;
+  // @ts-expect-error Mocking window.localStorage in node test environment
+  globalThis.window = { localStorage: mockStorage };
+
+  try {
+    const agentWithDownloadedSkill: Agent = {
+      ...INITIAL_AGENTS[0],
+      customSkills: [
+        {
+          id: "find-skill-frontend-design-test",
+          nameAr: "frontend-design",
+          descriptionAr: "Guidance for distinctive visual design.",
+          promptInstruction: "# Frontend Design Rules\nAlways check contrast and responsive layout.",
+          format: "markdown",
+          sourceUrl: "https://skills.sh/anthropics/skills/frontend-design",
+          installs: 1120000,
+        },
+      ],
+    };
+
+    saveOfficeState([agentWithDownloadedSkill], INITIAL_ROOMS);
+    const restored = loadOfficeState(INITIAL_AGENTS, INITIAL_ROOMS);
+    assert.ok(restored);
+    assert.equal(restored.agents[0].customSkills?.length, 1);
+    const skill = restored.agents[0].customSkills![0];
+    assert.equal(skill.nameAr, "frontend-design");
+    assert.equal(skill.sourceUrl, "https://skills.sh/anthropics/skills/frontend-design");
+    assert.equal(skill.installs, 1120000);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("getAgentSkillSuggestions provides role-tailored skills for all agent types", () => {
+  // 1. Tech / Developer
+  const dev = getAgentSkillSuggestions("مطوّر الويب", "Web Developer", "tech", "كتابة الأكواد النظيفة وحل المشاكل البرمجية.");
+  assert.equal(dev.primaryQuery, "code");
+  assert.equal(dev.categoryLabelAr, "البرمجة وتطوير البرمجيات");
+  assert.ok(dev.chips.some((c) => c.query === "code"));
+  assert.ok(dev.chips.some((c) => c.query === "react"));
+
+  // 2. Poster / UI Designer
+  const designer = getAgentSkillSuggestions("مصممة بوسترات", "Poster Designer", "creative", "تصميم بوسترات وهوية إعلانية متناسقة.");
+  assert.equal(designer.primaryQuery, "design");
+  assert.equal(designer.categoryLabelAr, "التصميم والواجهات والهوية");
+  assert.ok(designer.chips.some((c) => c.query === "design"));
+  assert.ok(designer.chips.some((c) => c.query === "mobile-apps"));
+
+  // 3. Marketing / Instagram
+  const marketing = getAgentSkillSuggestions("مديرة حساب إنستغرام", "Marketing Specialist", "creative", "صناعة المحتوى وكتابة الكابشن وإدارة الحملات.");
+  assert.equal(marketing.primaryQuery, "marketing");
+  assert.equal(marketing.categoryLabelAr, "التسويق وصناعة المحتوى");
+  assert.ok(marketing.chips.some((c) => c.query === "marketing"));
+  assert.ok(marketing.chips.some((c) => c.query === "copywriting"));
+
+  // 4. Finance / Sales
+  const finance = getAgentSkillSuggestions("محلل مالي", "Financial Analyst", "finance", "إدارة الميزانيات وتتبع الفواتير والتقارير المالية.");
+  assert.equal(finance.primaryQuery, "finance");
+  assert.equal(finance.categoryLabelAr, "المالية والحسابات والمبيعات");
+  assert.ok(finance.chips.some((c) => c.query === "finance"));
+  assert.ok(finance.chips.some((c) => c.query === "sheets"));
+
+  // 5. General Manager (Salman)
+  const gm = getAgentSkillSuggestions("المدير العام", "General Manager", "admin", "إدارة وتوزيع المهام ومتابعة الفريق.");
+  assert.equal(gm.primaryQuery, "planning");
+  assert.equal(gm.categoryLabelAr, "الإدارة والتخطيط وتنسيق المهام");
+  assert.ok(gm.chips.some((c) => c.query === "planning"));
+  assert.ok(gm.chips.some((c) => c.query === "management"));
+
+  // 6. Support
+  const support = getAgentSkillSuggestions("مسؤول خدمة العملاء", "Customer Support", "admin", "الرد على استفسارات العملاء وحل الشكاوى.");
+  assert.equal(support.primaryQuery, "support");
+  assert.equal(support.categoryLabelAr, "خدمة العملاء والدعم الفني");
+  assert.ok(support.chips.some((c) => c.query === "support"));
+});
+
+test("resolveDiscipline and DISCIPLINE_SEARCH_KEYWORDS provide specialized online search keywords per discipline", () => {
+  // 1. Tech / Developer agent
+  const techDiscipline = resolveDiscipline("مطوّر الويب", "tech");
+  assert.equal(techDiscipline, "tech");
+  assert.equal(DISCIPLINE_SEARCH_KEYWORDS[techDiscipline], "code");
+
+  // 2. Poster / Graphic Designer
+  const designDiscipline = resolveDiscipline("مصممة بوسترات", "creative");
+  assert.equal(designDiscipline, "design");
+  assert.equal(DISCIPLINE_SEARCH_KEYWORDS[designDiscipline], "design");
+
+  // 3. Instagram / Marketing Specialist
+  const marketingDiscipline = resolveDiscipline("مديرة حساب إنستغرام", "creative");
+  assert.equal(marketingDiscipline, "marketing");
+  assert.equal(DISCIPLINE_SEARCH_KEYWORDS[marketingDiscipline], "marketing");
+
+  // 4. Financial Analyst / Accountant
+  const financeDiscipline = resolveDiscipline("محاسب مالي", "finance");
+  assert.equal(financeDiscipline, "finance");
+  assert.equal(DISCIPLINE_SEARCH_KEYWORDS[financeDiscipline], "finance");
+
+  // 5. General Manager (Salman)
+  const gmDiscipline = resolveDiscipline("المدير العام", "admin");
+  assert.equal(gmDiscipline, "management");
+  assert.equal(DISCIPLINE_SEARCH_KEYWORDS[gmDiscipline], "management");
+});
+
+test("server file office state persistence and reset works seamlessly", () => {
+  try {
+    // 1. Initially clear any state
+    clearServerOfficeState();
+    assert.equal(getServerOfficeState(INITIAL_AGENTS, INITIAL_ROOMS), null);
+
+    // 2. Create a dynamic agent and save to server file
+    const { agent: newAgent, room: newRoom } = createAgentAndRoomFromSpec(
+      {
+        nameAr: "سعد الشهري",
+        roleAr: "أخصائي أمان",
+        roomNameAr: "غرفة الأمان السيبراني",
+        rules: "فحص الحزم واكتشاف الثغرات بدقة.",
+        skills: ["code-writing"],
+        themeColor: "#42a872",
+        furnitureStyle: "tech",
+      },
+      INITIAL_AGENTS,
+      INITIAL_ROOMS,
+    );
+
+    const updatedAgents = [...INITIAL_AGENTS, newAgent];
+    const updatedRooms = [...INITIAL_ROOMS, newRoom];
+    const saveResult = saveServerOfficeState({
+      agents: updatedAgents,
+      rooms: updatedRooms,
+      theme: "night",
+      sheetId: "my-custom-sheet-id-456",
+    });
+
+    assert.ok(saveResult.ok);
+    assert.ok(saveResult.savedAt > 0);
+
+    // 3. Reload state directly from server file
+    const restored = getServerOfficeState(INITIAL_AGENTS, INITIAL_ROOMS);
+    assert.ok(restored);
+    assert.equal(restored.agents.length, 2);
+    assert.equal(restored.rooms.length, 2);
+    assert.equal(restored.agents[1].nameAr, "سعد الشهري");
+    assert.equal(restored.agents[1].roleAr, "أخصائي أمان");
+    assert.equal(restored.rooms[1].nameAr, "غرفة الأمان السيبراني");
+    assert.equal(restored.theme, "night");
+    assert.equal(restored.sheetId, "my-custom-sheet-id-456");
+
+    // 4. Reset server state (Clear)
+    const clearResult = clearServerOfficeState();
+    assert.ok(clearResult.ok);
+    assert.equal(getServerOfficeState(INITIAL_AGENTS, INITIAL_ROOMS), null);
+  } finally {
+    clearServerOfficeState();
+  }
+});
+
+test("full skill package scans local project packages and loads references into agent runtime", () => {
+  // 1. Test scanning local project skills
+  const localSkills = scanLocalProjectSkills();
+  const apexSkill = localSkills.find((s) => s.skillId === "apex-ui-ux");
+  assert.ok(apexSkill, "apex-ui-ux package should be discovered in skills/ directory");
+  assert.equal(apexSkill.isLocal, true);
+  assert.equal(apexSkill.localPath, "skills/apex-ui-ux");
+  assert.ok(Array.isArray(apexSkill.files));
+  assert.ok(apexSkill.files.length >= 8, `Should contain at least 8 files, found ${apexSkill.files.length}`);
+  assert.ok(apexSkill.files.includes("SKILL.md"));
+  assert.ok(apexSkill.files.some((f) => f.includes("references/tokens.md")));
+  assert.ok(apexSkill.files.some((f) => f.includes("scripts/audit-ui.mjs")));
+
+  // 2. Test reading reference notes and scripts from disk
+  const details = loadLocalSkillPackageDetails(apexSkill.localPath);
+  assert.ok(details.referenceNotes.length > 0, "Should load reference notes from references/ folder");
+  assert.ok(details.availableScripts.length > 0, "Should load script references from scripts/ folder");
+
+  // 3. Test persistence of custom skills with full package fields (localPath, files)
+  const originalState = getServerOfficeState(INITIAL_AGENTS, INITIAL_ROOMS);
+  try {
+    const customSkillDef = {
+      id: "skill-apex-ui-ux",
+      nameAr: "apex-ui-ux",
+      descriptionAr: apexSkill.description || "حزمة تصميم واجهات متكاملة",
+      promptInstruction: "التزم بمعايير التصميم والرموز الفنية الدقيقة.",
+      format: "markdown" as const,
+      sourceUrl: "https://skills.sh/local/apex-ui-ux",
+      installs: 1,
+      localPath: apexSkill.localPath,
+      files: apexSkill.files,
+    };
+
+    const agentWithSkill: Agent = {
+      ...INITIAL_AGENTS[0],
+      customSkills: [customSkillDef],
+    };
+
+    saveServerOfficeState({
+      agents: [agentWithSkill],
+      rooms: INITIAL_ROOMS,
+      theme: "day",
+    });
+
+    const reloaded = getServerOfficeState(INITIAL_AGENTS, INITIAL_ROOMS);
+    assert.ok(reloaded);
+    assert.equal(reloaded.agents[0].customSkills?.length, 1);
+    const loadedSkill = reloaded.agents[0].customSkills![0];
+    assert.equal(loadedSkill.id, "skill-apex-ui-ux");
+    assert.equal(loadedSkill.localPath, "skills/apex-ui-ux");
+    assert.ok(Array.isArray(loadedSkill.files));
+    assert.equal(loadedSkill.files!.length, apexSkill.files.length);
+  } finally {
+    if (originalState) {
+      saveServerOfficeState({
+        agents: originalState.agents,
+        rooms: originalState.rooms,
+        theme: originalState.theme,
+        sheetId: originalState.sheetId,
+      });
+    } else {
+      clearServerOfficeState();
+    }
+  }
+});
+
+test("isCreateAgentCommand matches عميل and splitMultipleAgentCreationClauses creates multiple agents", async () => {
+  const userPrompt = "انشيء عميل يفحص ويحلل صفحة الانستة الخاصة بي ول اخر يقترح افكار فديوهات ولاخر يصنع بوسترات";
+  assert.equal(isCreateAgentCommand(userPrompt), true);
+
+  const clauses = splitMultipleAgentCreationClauses(userPrompt);
+  assert.equal(clauses.length, 3);
+  assert.ok(clauses[0].includes("الانستة"));
+  assert.ok(clauses[1].includes("فديوهات"));
+  assert.ok(clauses[2].includes("بوسترات"));
+
+  const response = await executeAgentCommand(
+    {
+      target: "gm",
+      command: userPrompt,
+      agents: [toPromptProfile(INITIAL_AGENTS[0], "غرفة المدير العام")],
+      rooms: INITIAL_ROOMS.map((r) => ({
+        id: r.id,
+        nameAr: r.nameAr,
+        shortNameAr: r.shortNameAr,
+        furnitureStyle: r.furnitureStyle,
+        agentIds: [...r.agentIds],
+      })),
+    },
+    localAgentRuntime,
+  );
+
+  assert.ok(response.createdAgents, "Should return createdAgents array");
+  assert.equal(response.createdAgents.length, 3, "Should create all 3 requested agents");
+  assert.ok(response.createdAgents[0].roleAr.includes("إنستغرام") || response.createdAgents[0].roleAr.includes("محلل"));
+  assert.ok(response.createdAgents[1].roleAr.includes("فيديو"));
+  assert.ok(response.createdAgents[2].roleAr.includes("بوستر"));
+  assert.ok(response.messages.logAr.includes("3 وكلاء"));
+});
+

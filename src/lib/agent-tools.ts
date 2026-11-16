@@ -20,7 +20,7 @@ export interface AgentToolContext {
   onPendingConfirmation?: (pending: PendingWorkspaceConfirmation) => void;
 }
 
-export type AgentToolExecutor = (
+type AgentToolExecutor = (
   call: { name: string; args: Record<string, unknown> },
   context: AgentToolContext,
 ) => Promise<Record<string, unknown>>;
@@ -1221,6 +1221,7 @@ export async function executeCreateNewAgent(
   const nameAr = asString(args.nameAr, "").slice(0, 60);
   const roleAr = asString(args.roleAr, "").slice(0, 60);
   const roomNameAr = asString(args.roomNameAr, "").slice(0, 80);
+  const targetRoomId = asString(args.targetRoomId, "").trim() || undefined;
   const rules = asString(args.rules, "").slice(0, 1400);
   const furnitureStyle = normalizeFurnitureStyle(args.furnitureStyle);
   const themeColor = normalizeHexColor(args.themeColor, furnitureStyle);
@@ -1243,6 +1244,7 @@ export async function executeCreateNewAgent(
     roleAr,
     roleEn: asString(args.roleEn, ""),
     roomNameAr: resolvedRoomName,
+    targetRoomId,
     rules: resolvedRules,
     skills,
     themeColor,
@@ -1260,25 +1262,31 @@ const GM_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "create_new_agent",
     description:
-      "إنشاء وكيل ذكاء اصطناعي جديد وبناء غرفة متصلة له في المقر الافتراضي عند طلب المستخدم توظيف أو إضافة وكيل جديد.",
+      "إنشاء وكيل ذكاء اصطناعي جديد وتسكينه في المقر الافتراضي — إما ببناء غرفة جديدة له أو بإضافته إلى غرفة موجودة إذا طلب المستخدم إضافته لنفس الغرفة أو مع وكيل آخر.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         nameAr: {
           type: Type.STRING,
-          description: "الاسم العربي الكامل للوكيل الجديد مثل: طارق القحطاني أو نورة السبيعي.",
+          description: "الاسم العربي الكامل للوكيل الجديد مثل: طارق القحطاني أو نورة السبيعي أو ليلى الحربي.",
         },
         roleAr: {
           type: Type.STRING,
-          description: "المسمى الوظيفي بالعربية مثل: مطوّر الويب أو مسؤول المبيعات.",
+          description: "المسمى الوظيفي بالعربية مثل: مطوّر الويب أو مصممة بوسترات أو مسؤول المبيعات.",
         },
         roleEn: {
           type: Type.STRING,
-          description: "المسمى الوظيفي بالإنجليزية (اختياري) مثل: Web Developer.",
+          description: "المسمى الوظيفي بالإنجليزية (اختياري) مثل: Web Developer أو Poster Designer.",
         },
         roomNameAr: {
           type: Type.STRING,
-          description: "اسم الغرفة بالعربية مثل: غرفة التطوير والبرمجة أو غرفة المبيعات.",
+          description:
+            "اسم الغرفة بالعربية. إذا كان الوكيل سيضاف لغرفة قائمة، اكتب اسم تلك الغرفة بدقة (مثال: غرفة التسويق والمحتوى).",
+        },
+        targetRoomId: {
+          type: Type.STRING,
+          description:
+            "معرّف الغرفة الموجودة في حال طلب المستخدم إضافة الوكيل لنفس الغرفة أو لغرفة قائمة من قائمة الغرف المتاحة (مثل معرّف غرفة موجودة أو gm). اتركه فارغاً فقط إذا طلب غرفة جديدة مستقلة.",
         },
         rules: {
           type: Type.STRING,
@@ -1360,12 +1368,6 @@ export function getToolsForAgent(agentId: AgentId, skills?: string[]): AgentTool
     execute: executeWorkspaceTool,
   };
 }
-
-export const AGENT_TOOLS: Partial<Record<AgentId, AgentToolSet>> = {
-  gm: getToolsForAgent(GM_AGENT_ID, []),
-  email: getToolsForAgent("email", ["gmail-workspace"]),
-  finance: getToolsForAgent("finance", ["sheets-finance"]),
-};
 
 export function getToolConfig(agentId: AgentId, skills?: string[]): Tool[] {
   const toolSet = getToolsForAgent(agentId, skills);

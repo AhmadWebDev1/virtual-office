@@ -1,9 +1,9 @@
-import type { AgentId, AgentRuntimeSource, FurnitureStyle } from "@/data/agents";
+import type { AgentId, AgentRuntimeSource, FurnitureStyle, RoomId } from "@/data/agents";
 import type { CustomSkillDefinition } from "@/data/skills";
 
 export type CommandTarget = AgentId | "auto";
 
-export type WorkspaceConfirmToolName =
+type WorkspaceConfirmToolName =
   | "create_email_draft"
   | "trash_emails"
   | "log_expense_or_invoice";
@@ -17,19 +17,33 @@ export interface PendingWorkspaceConfirmation {
   targetAgentId?: AgentId;
 }
 
+export interface RoomPromptProfile {
+  id: RoomId;
+  nameAr: string;
+  shortNameAr: string;
+  furnitureStyle?: FurnitureStyle;
+  agentIds: AgentId[];
+  rules?: string;
+  skills?: string[];
+}
+
 export interface AgentPromptProfile {
   id: AgentId;
   nameAr: string;
   roleAr: string;
   roleEn: string;
+  roomId?: RoomId;
   roomNameAr?: string;
   rules: string;
   skills: string[];
   customSkills?: CustomSkillDefinition[];
+  xp?: number;
+  level?: number;
 }
 
 export interface CreatedAgentSpec {
   id?: string;
+  targetRoomId?: RoomId;
   nameAr: string;
   roleAr: string;
   roleEn?: string;
@@ -44,6 +58,11 @@ export interface AgentCommandRequest {
   target: CommandTarget;
   command: string;
   agents?: AgentPromptProfile[];
+  rooms?: RoomPromptProfile[];
+  globalRules?: string;
+  globalSkills?: string[];
+  sandboxMode?: boolean;
+  hopCount?: number;
   googleAccessToken?: string;
   sheetId?: string;
   confirmAction?: {
@@ -77,10 +96,18 @@ export interface AgentCommandResponse {
   messages: AgentCommandMessages;
   source: AgentRuntimeSource;
   createdAgent?: CreatedAgentSpec;
+  createdAgents?: CreatedAgentSpec[];
   createdSheetId?: string;
   createdSheetUrl?: string;
   authExpired?: boolean;
   pendingConfirmation?: PendingWorkspaceConfirmation;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    costUsd: number;
+  };
+  loopBreakerTriggered?: boolean;
 }
 
 export interface AgentCommandError {

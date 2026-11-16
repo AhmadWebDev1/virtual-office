@@ -1,7 +1,5 @@
 import { normalizeSkillList, type CustomSkillDefinition } from "@/data/skills";
 
-export const WORLD = { width: 840, height: 396 } as const;
-
 export const OFFICE_GRID = {
   width: 840,
   paddingTop: 86,
@@ -16,7 +14,7 @@ export const OFFICE_GRID = {
 
 export type ThemeMode = "day" | "night";
 
-export const AGENT_STATUSES = ["working", "idle", "done", "error"] as const;
+export const AGENT_STATUSES = ["working", "idle", "done", "error", "waiting_approval", "cooldown"] as const;
 export const FURNITURE_STYLES = ["tech", "creative", "admin", "finance"] as const;
 
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
@@ -26,7 +24,7 @@ export type RoomId = string;
 export type AgentRuntimeSource = "gemini" | "local-runtime";
 
 export const GM_AGENT_ID = "gm";
-export const GM_ROOM_ID = "gm";
+const GM_ROOM_ID = "gm";
 
 export interface StatusMeta {
   labelAr: string;
@@ -40,7 +38,7 @@ export interface StatusMeta {
 export const STATUS_META: Record<AgentStatus, StatusMeta> = {
   working: {
     labelAr: "يشتغل",
-    pillLabelAr: "يشتغل 🟢",
+    pillLabelAr: "يشتغل",
     emoji: "🟢",
     dot: "#32b768",
     soft: "#d9f5e4",
@@ -48,7 +46,7 @@ export const STATUS_META: Record<AgentStatus, StatusMeta> = {
   },
   idle: {
     labelAr: "فاضي",
-    pillLabelAr: "فاضي 🟡",
+    pillLabelAr: "فاضي",
     emoji: "🟡",
     dot: "#e0a72e",
     soft: "#fff2cf",
@@ -56,7 +54,7 @@ export const STATUS_META: Record<AgentStatus, StatusMeta> = {
   },
   done: {
     labelAr: "خلصت",
-    pillLabelAr: "خلصت ✅",
+    pillLabelAr: "خلصت",
     emoji: "✅",
     dot: "#2f9c8a",
     soft: "#d7f3ee",
@@ -64,11 +62,27 @@ export const STATUS_META: Record<AgentStatus, StatusMeta> = {
   },
   error: {
     labelAr: "خطأ",
-    pillLabelAr: "خطأ 🔴",
+    pillLabelAr: "خطأ",
     emoji: "🔴",
     dot: "#d9534f",
     soft: "#fbe0df",
     text: "#8a2623",
+  },
+  waiting_approval: {
+    labelAr: "بانتظار الموافقة",
+    pillLabelAr: "موافقة",
+    emoji: "✋",
+    dot: "#f59e0b",
+    soft: "#fef3c7",
+    text: "#92400e",
+  },
+  cooldown: {
+    labelAr: "استراحة قهوة",
+    pillLabelAr: "استراحة",
+    emoji: "☕",
+    dot: "#d97706",
+    soft: "#fef3c7",
+    text: "#b45309",
   },
 };
 
@@ -120,6 +134,199 @@ export interface QuickAction {
   hintAr: string;
 }
 
+export interface CustomWebhookTool {
+  id: string;
+  nameAr: string;
+  descriptionAr: string;
+  method: "GET" | "POST" | "PUT";
+  url: string;
+  headers?: Record<string, string>;
+  bodyTemplate?: string;
+  enabled: boolean;
+}
+
+export interface AutomationRule {
+  id: string;
+  titleAr: string;
+  trigger: "onTaskComplete" | "onKeywordMatch" | "onError" | "onSchedule";
+  keyword?: string;
+  action: "forwardToAgent" | "changeDeskLed" | "saveToVault" | "notifyGm" | "requireApproval";
+  targetAgentId?: AgentId;
+  ledColor?: "green" | "amber" | "red" | "blue" | "default";
+  customPayload?: string;
+  enabled: boolean;
+}
+
+export interface AgentSchedule {
+  enabled: boolean;
+  intervalMinutes: number;
+  nextRunTimestamp: number;
+  prompt: string;
+  labelAr: string;
+}
+
+export interface DeliverableItem {
+  id: string;
+  titleAr: string;
+  agentId: AgentId;
+  agentNameAr: string;
+  agentRoleAr: string;
+  roomId?: RoomId;
+  timestamp: number;
+  type: "report" | "script" | "table" | "prompt" | "code" | "plan";
+  summaryAr: string;
+  content: string;
+  format: "markdown" | "csv" | "json";
+}
+
+export interface ApprovalRequest {
+  id: string;
+  agentId: AgentId;
+  agentNameAr: string;
+  agentRoleAr: string;
+  titleAr: string;
+  actionDescriptionAr: string;
+  impactLevel: "low" | "medium" | "high";
+  payload: Record<string, unknown> | string;
+  timestamp: number;
+  status: "pending" | "approved" | "rejected";
+}
+
+export interface EscalationTicket {
+  id: string;
+  agentId: AgentId;
+  agentNameAr: string;
+  roomId?: RoomId;
+  roomNameAr?: string;
+  errorDescriptionAr: string;
+  timestamp: number;
+  status: "open" | "resolved";
+  diagnosisAr?: string;
+  actionTakenAr?: string;
+}
+
+export interface WarRoomDebateTurn {
+  agentId: AgentId;
+  agentNameAr: string;
+  agentRoleAr: string;
+  speechAr: string;
+  timestamp: number;
+}
+
+export interface WarRoomMeeting {
+  id: string;
+  topicAr: string;
+  selectedAgentIds: AgentId[];
+  status: "idle" | "debating" | "synthesizing" | "completed";
+  turns: WarRoomDebateTurn[];
+  finalPlanAr?: string;
+}
+
+export interface OfficeBlueprint {
+  version: "1.0";
+  nameAr: string;
+  exportedAt: number;
+  globalRules?: string;
+  globalSkills?: string[];
+  rooms: Room[];
+  agents: Agent[];
+}
+
+export interface RoomBlueprint {
+  version: "1.0";
+  nameAr: string;
+  exportedAt: number;
+  room: Room;
+  agents: Agent[];
+}
+
+export const COFFEE_CORNER_POS = { x: 420, y: 114 } as const;
+
+export interface SelfEvolutionEntry {
+  id: string;
+  agentId: AgentId;
+  agentNameAr: string;
+  roomId?: RoomId;
+  critiqueAr: string;
+  refinedRuleAr: string;
+  timestamp: number;
+}
+
+export interface LedgerEntry {
+  id: string;
+  requestId: string;
+  timestamp: number;
+  agentId: AgentId;
+  agentNameAr: string;
+  roomId?: RoomId;
+  roomNameAr?: string;
+  taskTitleAr: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  source: AgentRuntimeSource;
+}
+
+export interface FloorDataPulse {
+  id: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  progress: number;
+  color: string;
+  labelAr: string;
+}
+
+export function calculateAgentLevel(xp = 0): {
+  level: number;
+  levelTitleAr: string;
+  currentLevelXp: number;
+  nextLevelXp: number;
+  progressPercent: number;
+  hasStar: boolean;
+} {
+  if (xp < 100) {
+    return {
+      level: 1,
+      levelTitleAr: "مبتدئ · Novice",
+      currentLevelXp: xp,
+      nextLevelXp: 100,
+      progressPercent: Math.min(100, Math.floor((xp / 100) * 100)),
+      hasStar: false,
+    };
+  }
+  if (xp < 250) {
+    return {
+      level: 2,
+      levelTitleAr: "مختص · Specialist",
+      currentLevelXp: xp - 100,
+      nextLevelXp: 150,
+      progressPercent: Math.min(100, Math.floor(((xp - 100) / 150) * 100)),
+      hasStar: true,
+    };
+  }
+  if (xp < 500) {
+    return {
+      level: 3,
+      levelTitleAr: "خبير · Expert",
+      currentLevelXp: xp - 250,
+      nextLevelXp: 250,
+      progressPercent: Math.min(100, Math.floor(((xp - 250) / 250) * 100)),
+      hasStar: true,
+    };
+  }
+  return {
+    level: 4,
+    levelTitleAr: "ماستر · Principal Lead",
+    currentLevelXp: xp - 500,
+    nextLevelXp: 500,
+    progressPercent: 100,
+    hasStar: true,
+  };
+}
+
 export interface AgentAvatar {
   skin: string;
   skinShadow: string;
@@ -150,6 +357,20 @@ export interface Agent {
   customSkills?: CustomSkillDefinition[];
   avatar: AgentAvatar;
   position: { x: number; y: number };
+  memory?: string[];
+  schedule?: AgentSchedule;
+  customTools?: CustomWebhookTool[];
+  scriptRules?: AutomationRule[];
+  deskLedColor?: "green" | "amber" | "red" | "blue" | "default";
+  xp?: number;
+  level?: number;
+  tokenUsage?: number;
+  consecutiveFailures?: number;
+  rankBadge?: "star" | "crown" | "medal" | "none";
+  stamina?: number;
+  cooldownUntil?: number;
+  originalPosition?: { x: number; y: number };
+  selfEvolutionLog?: SelfEvolutionEntry[];
 }
 
 export interface Room {
@@ -161,6 +382,10 @@ export interface Room {
   accent: string;
   furnitureStyle: FurnitureStyle;
   agentIds: AgentId[];
+  peerReviewEnabled?: boolean;
+  workflowChain?: AgentId[];
+  rules?: string;
+  skills?: string[];
 }
 
 export interface WorldDimensions {
@@ -186,6 +411,47 @@ export function getWorldDimensions(rooms: Room[]): WorldDimensions {
     rowCount,
     buildingBottom,
   };
+}
+
+export function computeStationPosition(
+  roomRect: { x: number; y: number; w: number; h: number },
+  stationIndex: number,
+  totalStations: number,
+): { x: number; y: number } {
+  if (totalStations <= 1) {
+    return {
+      x: roomRect.x + 188,
+      y: roomRect.y + 88,
+    };
+  }
+  const minX = roomRect.x + 138;
+  const maxX = roomRect.x + 236;
+  if (totalStations === 2) {
+    return {
+      x: stationIndex === 0 ? minX : maxX,
+      y: roomRect.y + 88,
+    };
+  }
+  const span = maxX - minX;
+  const step = span / (totalStations - 1);
+  return {
+    x: Math.round(minX + stationIndex * step),
+    y: roomRect.y + 88,
+  };
+}
+
+export function normalizeRoomName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/^غرفة\s+/, "")
+    .replace(/^استوديو\s+/, "")
+    .replace(/^مكتب\s+/, "")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .trim();
 }
 
 export function computeRoomPlacement(index: number): {
@@ -224,6 +490,8 @@ export const INITIAL_ROOMS: Room[] = [
     accent: "#d8a54a",
     furnitureStyle: "admin",
     agentIds: [GM_AGENT_ID],
+    rules: "التنسيق الاستراتيجي العام، التحقق من جودة المخرجات، وتوزيع المهام بدقة.",
+    skills: ["task-management"],
   },
 ];
 
@@ -285,28 +553,66 @@ export const INITIAL_AGENTS: Agent[] = [
       beard: true,
     },
     position: { x: 228, y: 174 },
+    memory: [
+      "المكتب الافتراضي يعمل بنظام RPG 16-بت وبدقة إدارية وحوكمة عالية.",
+      "فريق العمل يضم وكلاء متخصصين في التسويق والتحليل وكتابة المحتوى والتصميم.",
+      "يتم توجيه جميع المهام وفق بروتوكول التشغيل الذاتي والاعتماد الإداري.",
+    ],
+    scriptRules: [
+      {
+        id: "rule-invoice-auto",
+        titleAr: "تحويل الفواتير التلقائي للإدارة المالية",
+        trigger: "onKeywordMatch",
+        keyword: "فاتورة",
+        action: "forwardToAgent",
+        targetAgentId: "gm",
+        ledColor: "green",
+        enabled: true,
+      },
+      {
+        id: "rule-high-impact-approval",
+        titleAr: "حارس الجودة والموافقة البشرية",
+        trigger: "onKeywordMatch",
+        keyword: "نشر",
+        action: "requireApproval",
+        ledColor: "amber",
+        enabled: true,
+      },
+      {
+        id: "rule-vault-save",
+        titleAr: "أرشفة التقارير والمخرجات التلقائية في الخزنة",
+        trigger: "onTaskComplete",
+        action: "saveToVault",
+        ledColor: "blue",
+        enabled: true,
+      },
+    ],
+    customTools: [
+      {
+        id: "tool-n8n-webhook",
+        nameAr: "رابط أتمتة n8n / Make",
+        descriptionAr: "إرسال التقارير والبيانات الجاهزة مباشرة إلى مسار عمل خارجي",
+        method: "POST",
+        url: "https://api.example.com/v1/webhook",
+        bodyTemplate: '{"event": "task_deliverable", "summary": "{{summary}}"}',
+        enabled: false,
+      },
+    ],
+    xp: 320,
+    level: 3,
+    tokenUsage: 1420,
+    consecutiveFailures: 0,
+    rankBadge: "crown",
+    stamina: 100,
   },
 ];
-
-// Kept for convenience where baseline defaults are referenced.
-export const ROOMS: Room[] = INITIAL_ROOMS;
-export const AGENTS: Agent[] = INITIAL_AGENTS;
-export const DEFAULT_TARGET = "auto" as const;
 
 export function getAgentById(agentId: string, list: Agent[] = INITIAL_AGENTS): Agent | undefined {
   return list.find((agent) => agent.id === agentId);
 }
 
-export function isAgentId(value: unknown, list: Agent[] = INITIAL_AGENTS): value is AgentId {
-  return typeof value === "string" && list.some((agent) => agent.id === value);
-}
-
 export function getRoomById(roomId: string, list: Room[] = INITIAL_ROOMS): Room | undefined {
   return list.find((room) => room.id === roomId);
-}
-
-export function getAgentsForRoom(roomId: RoomId, list: Agent[] = INITIAL_AGENTS): Agent[] {
-  return list.filter((agent) => agent.roomId === roomId);
 }
 
 export function statusCounts(agents: Agent[]): Record<AgentStatus, number> {
@@ -315,7 +621,7 @@ export function statusCounts(agents: Agent[]): Record<AgentStatus, number> {
       counts[agent.status] += 1;
       return counts;
     },
-    { working: 0, idle: 0, done: 0, error: 0 } satisfies Record<AgentStatus, number>,
+    { working: 0, idle: 0, done: 0, error: 0, waiting_approval: 0, cooldown: 0 } satisfies Record<AgentStatus, number>,
   );
 }
 
@@ -329,6 +635,20 @@ export function cloneAgents(agents: Agent[]): Agent[] {
     quickActions: agent.quickActions.map((action) => ({ ...action })),
     avatar: { ...agent.avatar },
     position: { ...agent.position },
+    originalPosition: agent.originalPosition ? { ...agent.originalPosition } : undefined,
+    memory: agent.memory ? [...agent.memory] : [],
+    schedule: agent.schedule ? { ...agent.schedule } : undefined,
+    customTools: agent.customTools ? agent.customTools.map((t) => ({ ...t, headers: t.headers ? { ...t.headers } : undefined })) : [],
+    scriptRules: agent.scriptRules ? agent.scriptRules.map((r) => ({ ...r })) : [],
+    deskLedColor: agent.deskLedColor,
+    xp: agent.xp ?? 50,
+    level: agent.level ?? 1,
+    tokenUsage: agent.tokenUsage ?? 0,
+    consecutiveFailures: agent.consecutiveFailures ?? 0,
+    rankBadge: agent.rankBadge,
+    stamina: agent.stamina ?? 100,
+    cooldownUntil: agent.cooldownUntil,
+    selfEvolutionLog: agent.selfEvolutionLog ? agent.selfEvolutionLog.map((e) => ({ ...e })) : [],
   }));
 }
 
@@ -337,6 +657,10 @@ export function cloneRooms(rooms: Room[]): Room[] {
     ...room,
     rect: { ...room.rect },
     agentIds: [...room.agentIds],
+    peerReviewEnabled: room.peerReviewEnabled,
+    workflowChain: room.workflowChain ? [...room.workflowChain] : undefined,
+    rules: room.rules,
+    skills: room.skills ? [...room.skills] : [],
   }));
 }
 
@@ -398,7 +722,7 @@ export function normalizeFurnitureStyle(value: unknown): FurnitureStyle {
   return "admin";
 }
 
-export function generateProceduralAvatar(
+function generateProceduralAvatar(
   seedInput: string,
   themeColor: string,
   furnitureStyle: FurnitureStyle,
@@ -408,12 +732,12 @@ export function generateProceduralAvatar(
     hash = (hash * 31 + seedInput.charCodeAt(i)) >>> 0;
   }
   const skin = SKIN_TONES[hash % SKIN_TONES.length];
-  const hair = HAIR_TONES[(hash >> 2) % HAIR_TONES.length];
+  const hair = HAIR_TONES[(hash >>> 2) % HAIR_TONES.length];
   const shirts = STYLE_SHIRT_PALETTES[furnitureStyle];
-  const shirt = shirts[(hash >> 4) % shirts.length];
-  const style = HAIR_STYLES[(hash >> 5) % HAIR_STYLES.length];
+  const shirt = shirts[(hash >>> 4) % shirts.length];
+  const style = HAIR_STYLES[(hash >>> 5) % HAIR_STYLES.length];
   const accessoryList = ACCESSORIES[furnitureStyle];
-  const accessory = accessoryList[(hash >> 7) % accessoryList.length];
+  const accessory = accessoryList[(hash >>> 7) % accessoryList.length];
   const beard = style === "short" && (hash % 3 !== 0);
 
   return {
@@ -553,6 +877,7 @@ function makeShortRoomName(roomNameAr: string, roleAr: string): string {
 
 export interface CreateAgentSpecInput {
   id?: string;
+  targetRoomId?: string;
   nameAr: string;
   roleAr: string;
   roleEn?: string;
@@ -563,11 +888,18 @@ export interface CreateAgentSpecInput {
   furnitureStyle: FurnitureStyle;
 }
 
+export interface CreateAgentResult {
+  agent: Agent;
+  room: Room;
+  isNewRoom: boolean;
+  updatedExistingAgents: Agent[];
+}
+
 export function createAgentAndRoomFromSpec(
   spec: CreateAgentSpecInput,
   existingAgents: Agent[],
   existingRooms: Room[],
-): { agent: Agent; room: Room } {
+): CreateAgentResult {
   const furnitureStyle = normalizeFurnitureStyle(spec.furnitureStyle);
   const themeColor = normalizeHexColor(spec.themeColor, furnitureStyle);
   const skills = normalizeSkillList(spec.skills);
@@ -595,62 +927,137 @@ export function createAgentAndRoomFromSpec(
     ? `room-${uniqueAgentId}-${Math.random().toString(36).slice(2, 4)}`
     : `room-${uniqueAgentId}`;
 
-  const placement = computeRoomPlacement(nextIndex);
-  const roomNameAr = spec.roomNameAr.trim() || `غرفة ${spec.roleAr}`;
+  // Find if an existing room matches targetRoomId or roomNameAr
+  let targetRoom: Room | undefined;
+  if (spec.targetRoomId) {
+    targetRoom = existingRooms.find((r) => r.id === spec.targetRoomId);
+  }
+  if (!targetRoom && spec.roomNameAr) {
+    const normInput = normalizeRoomName(spec.roomNameAr);
+    if (normInput) {
+      targetRoom = existingRooms.find((r) => {
+        const normRoom = normalizeRoomName(r.nameAr);
+        const normShort = normalizeRoomName(r.shortNameAr);
+        return (
+          normInput === normRoom ||
+          normInput === normShort ||
+          (normInput.length >= 4 && (normRoom.includes(normInput) || normInput.includes(normRoom)))
+        );
+      });
+    }
+  }
+
+  const isNewRoom = !targetRoom;
+  const roomNameAr = targetRoom ? targetRoom.nameAr : spec.roomNameAr.trim() || `غرفة ${spec.roleAr}`;
+  const finalFurnitureStyle = targetRoom ? targetRoom.furnitureStyle : furnitureStyle;
+  const finalThemeColor = targetRoom ? targetRoom.accent : themeColor;
+
+  let room: Room;
+  let agentPosition: { x: number; y: number };
+  let stationAr: string;
+  const updatedExistingAgents: Agent[] = [];
+
+  if (targetRoom) {
+    const updatedAgentIds = [
+      ...targetRoom.agentIds.filter((id) => id !== uniqueAgentId),
+      uniqueAgentId,
+    ];
+    const totalInRoom = updatedAgentIds.length;
+    room = {
+      ...targetRoom,
+      agentIds: updatedAgentIds,
+    };
+
+    // Recompute station positions for existing occupants
+    updatedAgentIds.slice(0, totalInRoom - 1).forEach((existingId, idx) => {
+      const existing = existingAgents.find((a) => a.id === existingId);
+      if (existing) {
+        const pos = computeStationPosition(targetRoom!.rect, idx, totalInRoom);
+        updatedExistingAgents.push({
+          ...existing,
+          position: pos,
+          stationAr: `محطة ${idx + 1} · ${existing.roleAr}`,
+        });
+      }
+    });
+
+    agentPosition = computeStationPosition(targetRoom.rect, totalInRoom - 1, totalInRoom);
+    stationAr = `محطة ${totalInRoom} · ${spec.roleAr.trim()}`;
+  } else {
+    const placement = computeRoomPlacement(nextIndex);
+    agentPosition = placement.agentPosition;
+    stationAr = `محطة ${spec.roleAr.trim()}`;
+    const roleEn =
+      spec.roleEn?.trim() ||
+      (finalFurnitureStyle === "tech"
+        ? "Tech Specialist"
+        : finalFurnitureStyle === "finance"
+          ? "Finance Specialist"
+          : finalFurnitureStyle === "creative"
+            ? "Creative Specialist"
+            : "Operations Specialist");
+
+    room = {
+      id: uniqueRoomId,
+      nameAr: roomNameAr,
+      shortNameAr: makeShortRoomName(roomNameAr, spec.roleAr),
+      descriptionAr: `${spec.roleAr} — ${spec.rules.slice(0, 95)}`,
+      rect: placement.rect,
+      accent: finalThemeColor,
+      furnitureStyle: finalFurnitureStyle,
+      agentIds: [uniqueAgentId],
+    };
+  }
+
   const roleEn =
     spec.roleEn?.trim() ||
-    (furnitureStyle === "tech"
+    (finalFurnitureStyle === "tech"
       ? "Tech Specialist"
-      : furnitureStyle === "finance"
+      : finalFurnitureStyle === "finance"
         ? "Finance Specialist"
-        : furnitureStyle === "creative"
+        : finalFurnitureStyle === "creative"
           ? "Creative Specialist"
           : "Operations Specialist");
-
-  const room: Room = {
-    id: uniqueRoomId,
-    nameAr: roomNameAr,
-    shortNameAr: makeShortRoomName(roomNameAr, spec.roleAr),
-    descriptionAr: `${spec.roleAr} — ${spec.rules.slice(0, 95)}`,
-    rect: placement.rect,
-    accent: themeColor,
-    furnitureStyle,
-    agentIds: [uniqueAgentId],
-  };
 
   const agent: Agent = {
     id: uniqueAgentId,
     nameAr: spec.nameAr.trim(),
     roleAr: spec.roleAr.trim(),
     roleEn,
-    roomId: uniqueRoomId,
-    stationAr: `محطة ${spec.roleAr.trim()}`,
+    roomId: room.id,
+    stationAr,
     status: "idle",
-    statusNoteAr: "تم بناء الغرفة وتفعيل الوكيل — جاهز لاستلام الأوامر.",
+    statusNoteAr: isNewRoom
+      ? "تم بناء الغرفة وتفعيل الوكيل — جاهز لاستلام الأوامر."
+      : `تم تجهيز محطة عمل للوكيل داخل ${room.nameAr} — جاهز لاستلام الأوامر.`,
     activeTask: null,
     completedTasks: [
       {
         id: `hire-${uniqueAgentId}`,
-        titleAr: `انضمام ${spec.nameAr.trim()} وتجهيز ${roomNameAr}`,
+        titleAr: isNewRoom
+          ? `انضمام ${spec.nameAr.trim()} وتجهيز ${roomNameAr}`
+          : `انضمام ${spec.nameAr.trim()} إلى ${roomNameAr}`,
         timeAr: "الآن",
         outcome: "done",
         completedAt: Date.now(),
-        logAr: `تم إنشاء الوكيل بمهارات (${effectiveSkills.length}) وقواعد مخصصة من المدير العام.`,
+        logAr: isNewRoom
+          ? `تم إنشاء الوكيل بمهارات (${effectiveSkills.length}) وقواعد مخصصة من المدير العام.`
+          : `تم تسكين الوكيل بمحطة جديدة في ${roomNameAr} بجوار زملائه في الفريق.`,
       },
     ],
-    quickActions: buildStarterQuickActions(spec.roleAr.trim(), furnitureStyle, effectiveSkills),
+    quickActions: buildStarterQuickActions(spec.roleAr.trim(), finalFurnitureStyle, effectiveSkills),
     rules: spec.rules.trim(),
     skills: effectiveSkills,
     customSkills: [],
     avatar: generateProceduralAvatar(
       `${spec.nameAr}-${spec.roleAr}-${nextIndex}`,
-      themeColor,
-      furnitureStyle,
+      finalThemeColor,
+      finalFurnitureStyle,
     ),
-    position: placement.agentPosition,
+    position: agentPosition,
   };
 
-  return { agent, room };
+  return { agent, room, isNewRoom, updatedExistingAgents };
 }
 
 export interface AgentTaskInput {
@@ -735,18 +1142,6 @@ export function completeAgentTask(
         completed,
         ...agent.completedTasks.filter((entry) => entry.id !== completed.id),
       ].slice(0, 5),
-    };
-  });
-}
-
-export function failAgentTask(agents: Agent[], agentId: AgentId, noteAr: string): Agent[] {
-  return agents.map((agent) => {
-    if (agent.id !== agentId) return agent;
-    return {
-      ...agent,
-      status: "error",
-      statusNoteAr: noteAr,
-      activeTask: agent.activeTask ? { ...agent.activeTask, noteAr } : null,
     };
   });
 }

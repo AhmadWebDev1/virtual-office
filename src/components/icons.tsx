@@ -37,16 +37,6 @@ export function MoonIcon(props: IconProps) {
   );
 }
 
-export function UsersIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <circle cx="9" cy="8.5" r="2.5" />
-      <path d="M4 19v-1.5c0-2.2 2.2-4 5-4s5 1.8 5 4V19" />
-      <path d="M16 6.5a2 2 0 0 1 0 4M17.5 14c1.6.5 2.5 1.7 2.5 3.5V19" />
-    </Icon>
-  );
-}
-
 export function ZoomInIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -71,6 +61,49 @@ export function FitIcon(props: IconProps) {
       <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
       <rect x="9" y="9" width="6" height="6" />
     </Icon>
+  );
+}
+
+export function FullscreenIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+    </Icon>
+  );
+}
+
+export function RoomPixelIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" shapeRendering="crispEdges" fill="currentColor" aria-hidden="true" {...props}>
+      <rect x="7" y="1" width="2" height="1" />
+      <rect x="5" y="2" width="6" height="1" />
+      <rect x="3" y="3" width="10" height="1" />
+      <rect x="2" y="4" width="12" height="2" />
+      <rect x="3" y="6" width="10" height="8" />
+      <rect x="4" y="7" width="8" height="6" opacity="0.35" />
+      <rect x="5" y="8" width="2" height="2" opacity="0.9" />
+      <rect x="9" y="8" width="2" height="2" opacity="0.9" />
+      <rect x="7" y="10" width="2" height="4" opacity="0.75" />
+      <rect x="2" y="13" width="12" height="2" />
+    </svg>
+  );
+}
+
+export function AgentPixelIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" shapeRendering="crispEdges" fill="currentColor" aria-hidden="true" {...props}>
+      <rect x="5" y="1" width="6" height="2" />
+      <rect x="4" y="2" width="8" height="5" />
+      <rect x="5" y="3" width="2" height="1" opacity="0.35" />
+      <rect x="9" y="3" width="2" height="1" opacity="0.35" />
+      <rect x="7" y="5" width="2" height="1" opacity="0.55" />
+      <rect x="6" y="8" width="4" height="1" />
+      <rect x="4" y="9" width="8" height="5" />
+      <rect x="2" y="10" width="2" height="3" />
+      <rect x="12" y="10" width="2" height="3" />
+      <rect x="5" y="14" width="6" height="1" />
+      <rect x="6" y="10" width="4" height="2" opacity="0.35" />
+    </svg>
   );
 }
 
@@ -145,19 +178,12 @@ export function SparklesIcon(props: IconProps) {
   );
 }
 
+export const SparkleIcon = SparklesIcon;
+
 export function BoltIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
-    </Icon>
-  );
-}
-
-export function ClockIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7v5l3 2" />
     </Icon>
   );
 }
@@ -223,14 +249,6 @@ export function TerminalIcon(props: IconProps) {
   );
 }
 
-export function SparkleStarIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="m12 2 2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2Z" />
-    </Icon>
-  );
-}
-
 export function WifiIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -255,15 +273,6 @@ export function RouteIcon(props: IconProps) {
       <circle cx="5.5" cy="6" r="2.5" />
       <circle cx="18.5" cy="18" r="2.5" />
       <path d="M8 6h4a3 3 0 0 1 3 3v6a3 3 0 0 0 3 3" />
-    </Icon>
-  );
-}
-
-export function BuildingIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M4 21V5h10v16M14 10h6v11M2 21h20" />
-      <path d="M7 8h4M7 12h4M7 16h4M17 14h1M17 17h1" />
     </Icon>
   );
 }
@@ -303,6 +312,40 @@ export function TrashIcon(props: IconProps) {
   );
 }
 
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m16.5 16.5 4.5 4.5" />
+    </Icon>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 4v12m0 0-4-4m4 4 4-4M4 19h16" />
+    </Icon>
+  );
+}
+
+export function GlobeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c3 3 4.5 6 4.5 9s-1.5 6-4.5 9c-3-3-4.5-6-4.5-9s1.5-6 4.5-9Z" />
+    </Icon>
+  );
+}
+
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />
+    </Icon>
+  );
+}
+
 export function PixelLogo(props: IconProps) {
   return (
     <svg viewBox="0 0 32 32" shapeRendering="crispEdges" aria-hidden="true" {...props}>
@@ -320,5 +363,86 @@ export function PixelLogo(props: IconProps) {
       <rect x="2" y="26" width="6" height="4" fill="#7ec7b3" />
       <rect x="24" y="26" width="6" height="4" fill="#c47d54" />
     </svg>
+  );
+}
+
+export function ChatPixelIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" shapeRendering="crispEdges" fill="currentColor" aria-hidden="true" {...props}>
+      <rect x="2" y="2" width="12" height="1" />
+      <rect x="1" y="3" width="14" height="7" />
+      <rect x="2" y="10" width="12" height="1" />
+      <rect x="3" y="11" width="5" height="1" />
+      <rect x="2" y="12" width="3" height="1" />
+      <rect x="2" y="13" width="1" height="1" />
+      <rect x="4" y="5" width="2" height="2" opacity="0.3" />
+      <rect x="7" y="5" width="2" height="2" opacity="0.3" />
+      <rect x="10" y="5" width="2" height="2" opacity="0.3" />
+    </svg>
+  );
+}
+
+export function ChatIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </Icon>
+  );
+}
+
+export function MinimizeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 14h6m0 0v6m0-6L3 21M20 10h-6m0 0V4m0 6 7-7" />
+    </Icon>
+  );
+}
+
+export function PluginIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 2v4m0 12v4M2 12h4m12 0h4m-7-7 3-3m-10 0 3 3m0 10-3 3m10 0-3-3" />
+      <circle cx="12" cy="12" r="4" />
+    </Icon>
+  );
+}
+
+export function ClockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </Icon>
+  );
+}
+
+export function BrainIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04ZM14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z" />
+    </Icon>
+  );
+}
+
+export function SpeakerIcon({ muted = false, ...props }: IconProps & { muted?: boolean }) {
+  return (
+    <Icon {...props}>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      {muted ? (
+        <line x1="23" y1="9" x2="17" y2="15" />
+      ) : (
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+      )}
+      {muted && <line x1="17" y1="9" x2="23" y2="15" />}
+    </Icon>
+  );
+}
+
+export function VaultIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="1" />
+      <path d="M3 10h18M10 4v16M14 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+    </Icon>
   );
 }

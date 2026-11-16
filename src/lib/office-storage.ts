@@ -4,6 +4,8 @@ import {
   cloneAgents,
   cloneRooms,
   computeRoomPlacement,
+  computeStationPosition,
+  normalizeRoomName,
   type ActiveTask,
   type Agent,
   type AgentAvatar,
@@ -22,11 +24,13 @@ const VERSION = 2;
 const MAX_COMPLETED_TASKS = 5;
 const MAX_LOG_LENGTH = 800;
 
-interface PersistedOfficeState {
+export interface PersistedOfficeState {
   version: typeof VERSION;
   savedAt: number;
   agents: Agent[];
   rooms: Room[];
+  theme?: "day" | "night";
+  sheetId?: string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -118,18 +122,30 @@ function parseCustomSkills(value: unknown): CustomSkillDefinition[] {
   for (const entry of value) {
     if (!isRecord(entry)) continue;
     const id = readText(entry.id, 80);
-    const nameAr = readText(entry.nameAr, 60);
-    const descriptionAr = readText(entry.descriptionAr, 200) ?? "";
-    const promptInstruction = readText(entry.promptInstruction, 1200);
+    const nameAr = readText(entry.nameAr, 80);
+    const descriptionAr = readText(entry.descriptionAr, 240) ?? "";
+    const promptInstruction = readText(entry.promptInstruction, 3000);
     if (!id || !nameAr || !promptInstruction) continue;
+    const localPath = readText(entry.localPath, 200);
+    const files = Array.isArray(entry.files)
+      ? entry.files.filter((f): f is string => typeof f === "string" && f.length > 0 && f.length < 150)
+      : undefined;
+
     skills.push({
       id,
       nameAr,
       descriptionAr: descriptionAr || promptInstruction.slice(0, 120),
       promptInstruction,
       format: entry.format === "json" ? "json" : "markdown",
+      sourceUrl: readText(entry.sourceUrl, 250),
+      installs:
+        typeof entry.installs === "number" || typeof entry.installs === "string"
+          ? entry.installs
+          : undefined,
+      localPath,
+      files,
     });
-    if (skills.length >= 20) break;
+    if (skills.length >= 24) break;
   }
   return skills;
 }
@@ -164,26 +180,11 @@ function parseAvatar(value: unknown, fallback: AgentAvatar): AgentAvatar {
   };
 }
 
-export function loadOfficeState(
+export function parseOfficeStatePayload(
+  parsed: unknown,
   initialAgents: Agent[],
   initialRooms: Room[],
 ): { agents: Agent[]; rooms: Room[] } | null {
-  if (typeof window === "undefined") return null;
-
-  let raw: string | null = null;
-  try {
-    raw = window.localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
   if (
     !isRecord(parsed) ||
     parsed.version !== VERSION ||
@@ -197,17 +198,38 @@ export function loadOfficeState(
   const baseGmRoom = initialRooms[0];
 
   const rooms: Room[] = [];
+  const roomNameMap = new Map<string, Room>();
+  const roomIdMapping = new Map<string, string>();
+
   for (const entry of parsed.rooms) {
     if (!isRecord(entry)) continue;
     const id = readText(entry.id, 80);
     const nameAr = readText(entry.nameAr, 100);
     if (!id || !nameAr) continue;
+
+    const normName = normalizeRoomName(nameAr);
+    const existingRoom = normName ? roomNameMap.get(normName) : undefined;
+    if (existingRoom) {
+      roomIdMapping.set(id, existingRoom.id);
+      if (Array.isArray(entry.agentIds)) {
+        for (const rawAid of entry.agentIds) {
+          if (typeof rawAid === "string" && rawAid.trim()) {
+            const aid = rawAid.trim();
+            if (!existingRoom.agentIds.includes(aid)) {
+              existingRoom.agentIds.push(aid);
+            }
+          }
+        }
+      }
+      continue;
+    }
+
     const placement = computeRoomPlacement(rooms.length);
     const agentIds = Array.isArray(entry.agentIds)
       ? entry.agentIds.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
       : [];
     const fallbackRoom = initialRooms.find((r) => r.id === id) ?? baseGmRoom;
-    rooms.push({
+    const newRoom: Room = {
       id,
       nameAr,
       shortNameAr: readText(entry.shortNameAr, 40) ?? nameAr.slice(0, 18),
@@ -218,7 +240,12 @@ export function loadOfficeState(
         ? entry.furnitureStyle
         : fallbackRoom.furnitureStyle,
       agentIds,
-    });
+    };
+    rooms.push(newRoom);
+    roomIdMapping.set(id, id);
+    if (normName) {
+      roomNameMap.set(normName, newRoom);
+    }
   }
 
   if (rooms.length === 0) return null;
@@ -231,8 +258,14 @@ export function loadOfficeState(
     const id = readText(entry.id, 80);
     const nameAr = readText(entry.nameAr, 80);
     const roleAr = readText(entry.roleAr, 80);
-    const roomId = readText(entry.roomId, 80);
-    if (!id || !nameAr || !roleAr || !roomId || !roomById.has(roomId)) continue;
+    let roomId = readText(entry.roomId, 80);
+    if (!id || !nameAr || !roleAr || !roomId) continue;
+
+    if (roomIdMapping.has(roomId)) {
+      roomId = roomIdMapping.get(roomId)!;
+    }
+
+    if (!roomById.has(roomId)) continue;
 
     const baseline = initialAgents.find((a) => a.id === id) ?? baseGmAgent;
     const roomMeta = roomById.get(roomId)!;
@@ -265,10 +298,48 @@ export function loadOfficeState(
 
   if (agents.length === 0) return null;
 
+  for (const room of rooms) {
+    const roomAgents = agents.filter((a) => a.roomId === room.id);
+    room.agentIds = roomAgents.map((a) => a.id);
+    const totalInRoom = roomAgents.length;
+    roomAgents.forEach((agent, stationIdx) => {
+      agent.position = computeStationPosition(room.rect, stationIdx, totalInRoom);
+      if (totalInRoom > 1) {
+        agent.stationAr = `محطة ${stationIdx + 1} · ${agent.roleAr}`;
+      }
+    });
+  }
+
+  if (agents.length === 0) return null;
+
   return {
     agents: cloneAgents(agents),
     rooms: cloneRooms(rooms),
   };
+}
+
+export function loadOfficeState(
+  initialAgents: Agent[],
+  initialRooms: Room[],
+): { agents: Agent[]; rooms: Room[] } | null {
+  if (typeof window === "undefined") return null;
+
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  return parseOfficeStatePayload(parsed, initialAgents, initialRooms);
 }
 
 export function saveOfficeState(agents: Agent[], rooms: Room[]): void {
@@ -294,5 +365,40 @@ export function clearOfficeState(): void {
     window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // Nothing to clear when storage is unavailable.
+  }
+}
+
+export async function saveOfficeStateToServer(payload: {
+  agents: Agent[];
+  rooms: Room[];
+  theme?: "day" | "night";
+  sheetId?: string | null;
+}): Promise<boolean> {
+  try {
+    const res = await fetch("/api/office-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.ok);
+  } catch (error) {
+    console.error("Failed to save office state to server:", error);
+    return false;
+  }
+}
+
+export async function clearOfficeStateOnServer(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/office-state", {
+      method: "DELETE",
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.ok);
+  } catch (error) {
+    console.error("Failed to clear office state on server:", error);
+    return false;
   }
 }

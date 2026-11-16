@@ -20,7 +20,7 @@ import {
 import firebaseConfig from "../../firebase-applet-config.json";
 import { isSameOriginAuthHost } from "./workspace-auth-error";
 
-export const WORKSPACE_SCOPES = [
+const WORKSPACE_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/gmail.modify",

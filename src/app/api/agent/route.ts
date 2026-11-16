@@ -5,6 +5,7 @@ import type {
   AgentCommandError,
   AgentCommandRequest,
   AgentPromptProfile,
+  RoomPromptProfile,
 } from "@/lib/agent-contracts";
 import { executeAgentCommand } from "@/lib/agent-runtime";
 
@@ -37,11 +38,11 @@ function parseCustomSkills(raw: unknown): CustomSkillDefinition[] {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const obj = entry as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id.trim().slice(0, 80) : "";
-    const nameAr = typeof obj.nameAr === "string" ? obj.nameAr.trim().slice(0, 60) : "";
+    const nameAr = typeof obj.nameAr === "string" ? obj.nameAr.trim().slice(0, 80) : "";
     const promptInstruction =
-      typeof obj.promptInstruction === "string" ? obj.promptInstruction.trim().slice(0, 1200) : "";
+      typeof obj.promptInstruction === "string" ? obj.promptInstruction.trim().slice(0, 3000) : "";
     const descriptionAr =
-      typeof obj.descriptionAr === "string" ? obj.descriptionAr.trim().slice(0, 180) : "";
+      typeof obj.descriptionAr === "string" ? obj.descriptionAr.trim().slice(0, 240) : "";
     if (!id || !nameAr || !promptInstruction) continue;
     items.push({
       id,
@@ -49,8 +50,13 @@ function parseCustomSkills(raw: unknown): CustomSkillDefinition[] {
       descriptionAr,
       promptInstruction,
       format: obj.format === "json" ? "json" : "markdown",
+      sourceUrl: typeof obj.sourceUrl === "string" ? obj.sourceUrl.trim().slice(0, 250) : undefined,
+      installs:
+        typeof obj.installs === "number" || typeof obj.installs === "string"
+          ? obj.installs
+          : undefined,
     });
-    if (items.length >= 20) break;
+    if (items.length >= 24) break;
   }
   return items;
 }
@@ -72,6 +78,7 @@ function parseAgentsRoster(raw: unknown): AgentPromptProfile[] | undefined {
       nameAr,
       roleAr,
       roleEn: roleEn || roleAr,
+      roomId: typeof obj.roomId === "string" ? obj.roomId.trim().slice(0, 64) : undefined,
       roomNameAr: typeof obj.roomNameAr === "string" ? obj.roomNameAr.trim().slice(0, 100) : undefined,
       rules: typeof obj.rules === "string" ? obj.rules.trim().slice(0, 2000) : "",
       skills: Array.isArray(obj.skills)
@@ -83,6 +90,51 @@ function parseAgentsRoster(raw: unknown): AgentPromptProfile[] | undefined {
       customSkills: parseCustomSkills(obj.customSkills),
     });
     if (result.length >= MAX_AGENTS_IN_ROSTER) break;
+  }
+  return result.length > 0 ? result : undefined;
+}
+
+function parseRooms(raw: unknown): RoomPromptProfile[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const result: RoomPromptProfile[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const obj = entry as Record<string, unknown>;
+    const id = typeof obj.id === "string" ? obj.id.trim().slice(0, 64) : "";
+    const nameAr = typeof obj.nameAr === "string" ? obj.nameAr.trim().slice(0, 80) : "";
+    const shortNameAr =
+      typeof obj.shortNameAr === "string" && obj.shortNameAr.trim()
+        ? obj.shortNameAr.trim().slice(0, 40)
+        : nameAr.slice(0, 18);
+    const furnitureStyle =
+      obj.furnitureStyle === "tech" ||
+      obj.furnitureStyle === "creative" ||
+      obj.furnitureStyle === "finance" ||
+      obj.furnitureStyle === "admin"
+        ? obj.furnitureStyle
+        : undefined;
+    if (!id || !nameAr) continue;
+    const agentIds = Array.isArray(obj.agentIds)
+      ? obj.agentIds
+          .filter((a): a is string => typeof a === "string" && a.trim().length > 0)
+          .map((a) => a.trim().slice(0, 64))
+      : [];
+    const rules = typeof obj.rules === "string" ? obj.rules.trim().slice(0, 2000) : undefined;
+    const skills = Array.isArray(obj.skills)
+      ? obj.skills
+          .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+          .map((s) => s.trim().slice(0, 60))
+      : undefined;
+    result.push({
+      id,
+      nameAr,
+      shortNameAr,
+      furnitureStyle,
+      agentIds,
+      rules,
+      skills,
+    });
+    if (result.length >= 24) break;
   }
   return result.length > 0 ? result : undefined;
 }
@@ -170,6 +222,16 @@ export async function POST(request: Request) {
           ? "تأكيد نقل الرسائل إلى سلة المهملات"
           : "تأكيد تسجيل عملية مالية"),
     agents,
+    rooms: parseRooms(payload.rooms),
+    globalRules:
+      typeof payload.globalRules === "string" ? payload.globalRules.trim().slice(0, 3000) : undefined,
+    globalSkills: Array.isArray(payload.globalSkills)
+      ? payload.globalSkills
+          .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+          .map((s) => s.trim().slice(0, 60))
+      : undefined,
+    sandboxMode: Boolean(payload.sandboxMode),
+    hopCount: typeof payload.hopCount === "number" ? payload.hopCount : 0,
     googleAccessToken,
     sheetId,
     confirmAction,

@@ -717,6 +717,7 @@ function paintRoomFurniture(ctx: Ctx, room: Room, palette: ScenePalette) {
   const { x: rx, y: ry } = room.rect;
   const style = room.furnitureStyle;
   const accent = room.accent || "#d8a54a";
+  const isMultiAgent = room.agentIds.length > 1;
 
   if (style === "admin") {
     drawRug(ctx, rx + 80, ry + 60, 208, 118, "#7e3c34", "#cda763", accent, true);
@@ -725,14 +726,27 @@ function paintRoomFurniture(ctx: Ctx, room: Room, palette: ScenePalette) {
     drawPlant(ctx, rx + 304, ry + 168, palette, 1.2);
     drawPlant(ctx, rx + 18, ry + 154, palette, 0.92);
     drawDesk(ctx, rx + 92, ry + 100, 192, 42, "#95623c", "#5f3a24", "#2f5046");
-    drawMonitor(ctx, rx + 172, ry + 107, "admin", accent, 32, 18);
-    drawKeyboard(ctx, rx + 176, ry + 129, 24, "#d8c9ae");
-    drawPapers(ctx, rx + 246, ry + 127, 3);
-    drawMug(ctx, rx + 112, ry + 113, "#dbb164");
-    drawDeskLamp(ctx, rx + 120, ry + 106, "#e3c172");
-    px(ctx, rx + 141, ry + 127, 14, 9, OUTLINE);
-    px(ctx, rx + 142, ry + 128, 12, 7, "#3e3024");
-    px(ctx, rx + 144, ry + 129, 8, 5, "#6d5b43");
+
+    if (isMultiAgent) {
+      drawMonitor(ctx, rx + 122, ry + 107, "admin", accent, 30, 17);
+      drawKeyboard(ctx, rx + 126, ry + 129, 22, "#d8c9ae");
+      drawMug(ctx, rx + 96, ry + 113, "#dbb164");
+      drawMonitor(ctx, rx + 220, ry + 107, "admin", accent, 30, 17);
+      drawKeyboard(ctx, rx + 224, ry + 129, 22, "#d8c9ae");
+      drawMug(ctx, rx + 258, ry + 113, "#dbb164");
+      drawDeskLamp(ctx, rx + 174, ry + 106, "#e3c172");
+      drawPapers(ctx, rx + 266, ry + 127, 2);
+    } else {
+      drawMonitor(ctx, rx + 172, ry + 107, "admin", accent, 32, 18);
+      drawKeyboard(ctx, rx + 176, ry + 129, 24, "#d8c9ae");
+      drawPapers(ctx, rx + 246, ry + 127, 3);
+      drawMug(ctx, rx + 112, ry + 113, "#dbb164");
+      drawDeskLamp(ctx, rx + 120, ry + 106, "#e3c172");
+      px(ctx, rx + 141, ry + 127, 14, 9, OUTLINE);
+      px(ctx, rx + 142, ry + 128, 12, 7, "#3e3024");
+      px(ctx, rx + 144, ry + 129, 8, 5, "#6d5b43");
+    }
+
     // Visitor armchair & side table.
     px(ctx, rx + 44, ry + 154, 26, 22, SHADOW);
     px(ctx, rx + 42, ry + 152, 26, 22, OUTLINE);
@@ -749,13 +763,25 @@ function paintRoomFurniture(ctx: Ctx, room: Room, palette: ScenePalette) {
     drawPlant(ctx, rx + 24, ry + 162, palette, 1.15);
     drawPlant(ctx, rx + 306, ry + 166, palette, 0.95);
     drawDesk(ctx, rx + 88, ry + 100, 198, 42, "#5b483a", "#382a20", "#1b333d");
-    // Wide primary + angled secondary developer monitors.
-    drawMonitor(ctx, rx + 152, ry + 107, "tech", accent, 34, 18, false);
-    drawMonitor(ctx, rx + 190, ry + 108, "tech", accent, 28, 17, true);
-    drawKeyboard(ctx, rx + 170, ry + 129, 26, "#d4dce0");
-    drawMug(ctx, rx + 108, ry + 112, accent);
-    drawDeskLamp(ctx, rx + 116, ry + 106, accent);
-    drawPapers(ctx, rx + 246, ry + 124, 2);
+
+    if (isMultiAgent) {
+      drawMonitor(ctx, rx + 120, ry + 107, "tech", accent, 32, 17, false);
+      drawKeyboard(ctx, rx + 124, ry + 129, 24, "#d4dce0");
+      drawMug(ctx, rx + 94, ry + 112, accent);
+      drawMonitor(ctx, rx + 218, ry + 107, "tech", accent, 32, 17, true);
+      drawKeyboard(ctx, rx + 222, ry + 129, 24, "#d4dce0");
+      drawMug(ctx, rx + 258, ry + 112, accent);
+      drawDeskLamp(ctx, rx + 174, ry + 106, accent);
+      drawPapers(ctx, rx + 266, ry + 124, 2);
+    } else {
+      // Wide primary + angled secondary developer monitors.
+      drawMonitor(ctx, rx + 152, ry + 107, "tech", accent, 34, 18, false);
+      drawMonitor(ctx, rx + 190, ry + 108, "tech", accent, 28, 17, true);
+      drawKeyboard(ctx, rx + 170, ry + 129, 26, "#d4dce0");
+      drawMug(ctx, rx + 108, ry + 112, accent);
+      drawDeskLamp(ctx, rx + 116, ry + 106, accent);
+      drawPapers(ctx, rx + 246, ry + 124, 2);
+    }
   } else if (style === "finance") {
     drawRug(ctx, rx + 74, ry + 58, 218, 118, "#545846", "#cab77d", "#e3d197", true);
     drawWallBoard(ctx, rx + 24, ry + 19, 86, 28);
@@ -763,15 +789,27 @@ function paintRoomFurniture(ctx: Ctx, room: Room, palette: ScenePalette) {
     drawCabinet(ctx, rx + 18, ry + 66, 30, 66);
     drawPlant(ctx, rx + 306, ry + 166, palette, 1.15);
     drawDesk(ctx, rx + 88, ry + 100, 196, 40, "#866849", "#543e2d", "#41493a");
-    drawMonitor(ctx, rx + 156, ry + 106, "finance", accent, 32, 17, false);
-    drawMonitor(ctx, rx + 194, ry + 107, "finance", accent, 26, 15, true);
-    drawKeyboard(ctx, rx + 168, ry + 127, 24, "#cdc6ae");
-    drawPapers(ctx, rx + 102, ry + 114, 4);
-    drawDeskLamp(ctx, rx + 96, ry + 104, "#549b76");
-    drawMug(ctx, rx + 258, ry + 111, "#c9dd9f");
-    px(ctx, rx + 230, ry + 108, 14, 10, OUTLINE);
-    px(ctx, rx + 231, ry + 109, 12, 8, "#4b4a3c");
-    px(ctx, rx + 234, ry + 111, 6, 4, "#c6d29c");
+
+    if (isMultiAgent) {
+      drawMonitor(ctx, rx + 122, ry + 106, "finance", accent, 30, 16, false);
+      drawKeyboard(ctx, rx + 126, ry + 127, 22, "#cdc6ae");
+      drawMug(ctx, rx + 94, ry + 111, "#c9dd9f");
+      drawMonitor(ctx, rx + 220, ry + 106, "finance", accent, 30, 16, true);
+      drawKeyboard(ctx, rx + 224, ry + 127, 22, "#cdc6ae");
+      drawMug(ctx, rx + 258, ry + 111, "#c9dd9f");
+      drawDeskLamp(ctx, rx + 174, ry + 104, "#549b76");
+      drawPapers(ctx, rx + 98, ry + 124, 2);
+    } else {
+      drawMonitor(ctx, rx + 156, ry + 106, "finance", accent, 32, 17, false);
+      drawMonitor(ctx, rx + 194, ry + 107, "finance", accent, 26, 15, true);
+      drawKeyboard(ctx, rx + 168, ry + 127, 24, "#cdc6ae");
+      drawPapers(ctx, rx + 102, ry + 114, 4);
+      drawDeskLamp(ctx, rx + 96, ry + 104, "#549b76");
+      drawMug(ctx, rx + 258, ry + 111, "#c9dd9f");
+      px(ctx, rx + 230, ry + 108, 14, 10, OUTLINE);
+      px(ctx, rx + 231, ry + 109, 12, 8, "#4b4a3c");
+      px(ctx, rx + 234, ry + 111, 6, 4, "#c6d29c");
+    }
   } else {
     // Creative studio.
     drawRug(ctx, rx + 62, ry + 56, 248, 122, "#7b4b3d", "#d5af74", "#f2daac", true);
@@ -787,16 +825,34 @@ function paintRoomFurniture(ctx: Ctx, room: Room, palette: ScenePalette) {
     px(ctx, rx + 122, ry + 22, 9, 12, "#ebc76d");
 
     drawDesk(ctx, rx + 88, ry + 100, 192, 40, "#996341", "#633f28", "#c9a477");
-    // Pen display + creative monitor.
-    px(ctx, rx + 126, ry + 107, 30, 16, "#2c2c27");
-    px(ctx, rx + 128, ry + 108, 26, 12, "#d8e6d3");
-    px(ctx, rx + 130, ry + 110, 9, 3, "#e38e63");
-    px(ctx, rx + 130, ry + 115, 15, 2, "#7db0a2");
-    drawMonitor(ctx, rx + 170, ry + 106, "creative", accent, 30, 17, false);
-    drawKeyboard(ctx, rx + 172, ry + 127, 22, "#e0d1b4");
-    drawMug(ctx, rx + 104, ry + 111, "#e8b6a9");
-    drawDeskLamp(ctx, rx + 244, ry + 106, accent);
-    drawRingStand(ctx, rx + 266, ry, ry + 100);
+
+    if (isMultiAgent) {
+      // Station 1
+      px(ctx, rx + 100, ry + 108, 20, 13, "#2c2c27");
+      px(ctx, rx + 102, ry + 109, 16, 10, "#d8e6d3");
+      px(ctx, rx + 104, ry + 111, 7, 2, "#e38e63");
+      drawMonitor(ctx, rx + 124, ry + 106, "creative", accent, 28, 16, false);
+      drawKeyboard(ctx, rx + 126, ry + 127, 22, "#e0d1b4");
+      drawMug(ctx, rx + 94, ry + 114, "#e8b6a9");
+      // Station 2
+      drawMonitor(ctx, rx + 220, ry + 106, "creative", accent, 28, 16, true);
+      drawKeyboard(ctx, rx + 222, ry + 127, 22, "#e0d1b4");
+      drawMug(ctx, rx + 256, ry + 114, accent);
+      drawDeskLamp(ctx, rx + 174, ry + 105, accent);
+      drawRingStand(ctx, rx + 290, ry + 8, ry + 100);
+    } else {
+      // Pen display + creative monitor.
+      px(ctx, rx + 126, ry + 107, 30, 16, "#2c2c27");
+      px(ctx, rx + 128, ry + 108, 26, 12, "#d8e6d3");
+      px(ctx, rx + 130, ry + 110, 9, 3, "#e38e63");
+      px(ctx, rx + 130, ry + 115, 15, 2, "#7db0a2");
+      drawMonitor(ctx, rx + 170, ry + 106, "creative", accent, 30, 17, false);
+      drawKeyboard(ctx, rx + 172, ry + 127, 22, "#e0d1b4");
+      drawMug(ctx, rx + 104, ry + 111, "#e8b6a9");
+      drawDeskLamp(ctx, rx + 244, ry + 106, accent);
+      drawRingStand(ctx, rx + 266, ry, ry + 100);
+    }
+
     drawSofa(ctx, rx + 214, ry + 158, 76, 24);
     drawPlant(ctx, rx + 24, ry + 162, palette, 1.0);
     drawPlant(ctx, rx + 306, ry + 166, palette, 0.9);
@@ -1111,42 +1167,74 @@ function collectDynamicDecor(rooms: Room[], world: WorldDimensions) {
       room: { x: rx + 12, y: ry + 12, w: room.rect.w - 24, h: room.rect.h - 24 },
     });
 
-    screenLights.push({
-      x: rx + 188,
-      y: ry + 115,
-      radius: 50,
-      color: rgb,
-      alpha: 0.44,
-    });
+    const isMultiAgent = room.agentIds.length > 1;
 
-    if (room.furnitureStyle === "tech") {
-      screenLights.push({
-        x: rx + 206,
-        y: ry + 115,
-        radius: 36,
-        color: [106, 215, 236],
-        alpha: 0.34,
-      });
-      deskLights.push({ x: rx + 122, y: ry + 107, radius: 34, color: rgb, alpha: 0.3 });
-      mugs.push({ x: rx + 110, y: ry + 111 });
-      screens.push(
-        { roomId: room.id, x: rx + 154, y: ry + 109, w: 30, h: 14 },
-        { roomId: room.id, x: rx + 192, y: ry + 110, w: 24, h: 13 },
+    if (isMultiAgent) {
+      screenLights.push(
+        { x: rx + 138, y: ry + 115, radius: 44, color: rgb, alpha: 0.4 },
+        { x: rx + 236, y: ry + 115, radius: 44, color: rgb, alpha: 0.4 },
       );
-      techServerSpots.push({ x: rx + 309, y: ry + 29 });
-    } else if (room.furnitureStyle === "finance") {
-      deskLights.push({ x: rx + 102, y: ry + 106, radius: 34, color: [148, 222, 174], alpha: 0.28 });
-      mugs.push({ x: rx + 260, y: ry + 110 });
-      screens.push({ roomId: room.id, x: rx + 158, y: ry + 108, w: 28, h: 13 });
-    } else if (room.furnitureStyle === "creative") {
-      screenLights.push({ x: rx + 266, y: ry + 72, radius: 42, color: [255, 240, 203], alpha: 0.42 });
-      deskLights.push({ x: rx + 250, y: ry + 107, radius: 34, color: [255, 205, 134], alpha: 0.32 });
-      mugs.push({ x: rx + 106, y: ry + 110 });
-      screens.push({ roomId: room.id, x: rx + 172, y: ry + 108, w: 26, h: 13 });
+      deskLights.push({
+        x: rx + 188,
+        y: ry + 106,
+        radius: 32,
+        color: [255, 215, 134],
+        alpha: 0.3,
+      });
+      mugs.push({ x: rx + 94, y: ry + 114 }, { x: rx + 258, y: ry + 114 });
+      screens.push(
+        { roomId: room.id, x: rx + 124, y: ry + 108, w: 26, h: 13 },
+        { roomId: room.id, x: rx + 222, y: ry + 108, w: 26, h: 13 },
+      );
+      if (room.furnitureStyle === "tech") {
+        techServerSpots.push({ x: rx + 309, y: ry + 29 });
+      } else if (room.furnitureStyle === "creative") {
+        screenLights.push({
+          x: rx + 290,
+          y: ry + 72,
+          radius: 36,
+          color: [255, 240, 203],
+          alpha: 0.38,
+        });
+      }
     } else {
-      deskLights.push({ x: rx + 126, y: ry + 106, radius: 38, color: [255, 205, 124], alpha: 0.34 });
-      mugs.push({ x: rx + 114, y: ry + 112 });
-      screens.push({ roomId: room.id, x: rx + 174, y: ry + 109, w: 28, h: 14 });
+      screenLights.push({
+        x: rx + 188,
+        y: ry + 115,
+        radius: 50,
+        color: rgb,
+        alpha: 0.44,
+      });
+
+      if (room.furnitureStyle === "tech") {
+        screenLights.push({
+          x: rx + 206,
+          y: ry + 115,
+          radius: 36,
+          color: [106, 215, 236],
+          alpha: 0.34,
+        });
+        deskLights.push({ x: rx + 122, y: ry + 107, radius: 34, color: rgb, alpha: 0.3 });
+        mugs.push({ x: rx + 110, y: ry + 111 });
+        screens.push(
+          { roomId: room.id, x: rx + 154, y: ry + 109, w: 30, h: 14 },
+          { roomId: room.id, x: rx + 192, y: ry + 110, w: 24, h: 13 },
+        );
+        techServerSpots.push({ x: rx + 309, y: ry + 29 });
+      } else if (room.furnitureStyle === "finance") {
+        deskLights.push({ x: rx + 102, y: ry + 106, radius: 34, color: [148, 222, 174], alpha: 0.28 });
+        mugs.push({ x: rx + 260, y: ry + 110 });
+        screens.push({ roomId: room.id, x: rx + 158, y: ry + 108, w: 28, h: 13 });
+      } else if (room.furnitureStyle === "creative") {
+        screenLights.push({ x: rx + 266, y: ry + 72, radius: 42, color: [255, 240, 203], alpha: 0.42 });
+        deskLights.push({ x: rx + 250, y: ry + 107, radius: 34, color: [255, 205, 134], alpha: 0.32 });
+        mugs.push({ x: rx + 106, y: ry + 110 });
+        screens.push({ roomId: room.id, x: rx + 172, y: ry + 108, w: 26, h: 13 });
+      } else {
+        deskLights.push({ x: rx + 126, y: ry + 106, radius: 38, color: [255, 205, 124], alpha: 0.34 });
+        mugs.push({ x: rx + 114, y: ry + 112 });
+        screens.push({ roomId: room.id, x: rx + 174, y: ry + 109, w: 28, h: 14 });
+      }
     }
   }
 
@@ -1308,8 +1396,36 @@ function drawWorkingEffects(
   room: Room | undefined,
   time: number,
 ) {
-  if (agent.status !== "working") return;
   const { x, y } = agent.position;
+
+  // Approval Needed Pulsing Aura
+  if (agent.status === "waiting_approval") {
+    const pulse = 0.5 + 0.5 * Math.sin(time / 200);
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.35 * pulse;
+    px(ctx, x - 12, y - 10, 24, 20, "#f59e0b");
+    ctx.restore();
+    return;
+  }
+
+  // Custom Desk LED Glow
+  if (agent.deskLedColor && agent.deskLedColor !== "default") {
+    const ledColor =
+      agent.deskLedColor === "green"
+        ? "#32b768"
+        : agent.deskLedColor === "amber"
+          ? "#f59e0b"
+          : agent.deskLedColor === "red"
+            ? "#ef4444"
+            : "#3b82f6";
+    const ledPulse = 0.7 + 0.3 * Math.sin(time / 300);
+    ctx.save();
+    ctx.globalAlpha = 0.25 * ledPulse;
+    px(ctx, x - 10, y + 8, 20, 10, ledColor);
+    ctx.restore();
+  }
+
+  if (agent.status !== "working") return;
   const style = room?.furnitureStyle ?? "admin";
 
   if (style === "tech") {

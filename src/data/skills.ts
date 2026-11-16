@@ -17,6 +17,155 @@ export interface CustomSkillDefinition {
   descriptionAr: string;
   promptInstruction: string;
   format: "markdown" | "json";
+  sourceUrl?: string;
+  installs?: number | string;
+  localPath?: string;
+  files?: string[];
+}
+
+export function formatInstallCount(installs?: number | string): string {
+  if (installs === undefined || installs === null) return "";
+  const num = typeof installs === "number" ? installs : Number.parseFloat(installs);
+  if (Number.isNaN(num)) return installs.toString();
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return num.toString();
+}
+
+export interface AgentSkillSuggestionChip {
+  label: string;
+  query: string;
+}
+
+export interface AgentSkillSuggestionProfile {
+  primaryQuery: string;
+  categoryLabelAr: string;
+  chips: AgentSkillSuggestionChip[];
+}
+
+export function getAgentSkillSuggestions(
+  roleAr = "",
+  roleEn = "",
+  furnitureStyle = "admin",
+  rules = "",
+): AgentSkillSuggestionProfile {
+  const combined = `${roleAr} ${roleEn} ${rules}`.toLowerCase();
+
+  // 1. Tech / Programming / Developers
+  if (
+    furnitureStyle === "tech" ||
+    /برمج|مطور|كود|تطوير|ويب|فرونت|باك|مهندس|هندس|تقن|سيرفر|قواعد بيانات|code|dev|developer|engineer|software|web|frontend|backend|react|next|typescript|api|bug|test|debug/.test(
+      combined,
+    )
+  ) {
+    return {
+      primaryQuery: "code",
+      categoryLabelAr: "البرمجة وتطوير البرمجيات",
+      chips: [
+        { label: "برمجة وكود (code)", query: "code" },
+        { label: "واجهات (react)", query: "react" },
+        { label: "فحص واختبار (testing)", query: "testing" },
+        { label: "تصحيح أخطاء (debugging)", query: "debugging" },
+        { label: "بنية برمجية (architecture)", query: "architecture" },
+        { label: "أدوات برمجية (api)", query: "api" },
+      ],
+    };
+  }
+
+  // 2. Design / UI / UX / Graphics / Posters
+  if (
+    /تصميم|مصمم|بوستر|جرافيك|فوتوشوب|فيغما|واجهات|ألوان|هوية|ui|ux|design|figma|poster|graphic|vector|illustrat/.test(
+      combined,
+    )
+  ) {
+    return {
+      primaryQuery: "design",
+      categoryLabelAr: "التصميم والواجهات والهوية",
+      chips: [
+        { label: "تصميم واجهات (design)", query: "design" },
+        { label: "تطبيقات موبايل (mobile-apps)", query: "mobile-apps" },
+        { label: "أنظمة تصميم (ui-ux)", query: "ui-ux" },
+        { label: "هوية بصرية (branding)", query: "branding" },
+        { label: "مكونات ويب (frontend)", query: "frontend" },
+        { label: "رسوم وشعارات (graphics)", query: "graphics" },
+      ],
+    };
+  }
+
+  // 3. Marketing / Content / Social Media / Copywriting / Instagram
+  if (
+    furnitureStyle === "creative" ||
+    /تسويق|محتوى|انستغرام|إنستغرام|سوشيال|إعلان|اعلان|سيو|كتابة محتوى|نشر|ريلز|منشور|marketing|social|content|instagram|copy|copywriting|seo|campaign|growth/.test(
+      combined,
+    )
+  ) {
+    return {
+      primaryQuery: "marketing",
+      categoryLabelAr: "التسويق وصناعة المحتوى",
+      chips: [
+        { label: "تسويق رقمي (marketing)", query: "marketing" },
+        { label: "كتابة إعلانية (copywriting)", query: "copywriting" },
+        { label: "سوشيال ميديا (social)", query: "social" },
+        { label: "حملات البريد (emails)", query: "emails" },
+        { label: "محركات البحث (seo)", query: "seo" },
+        { label: "نمو الحسابات (growth)", query: "growth" },
+      ],
+    };
+  }
+
+  // 4. Finance / Accounting / Sales / RevOps
+  if (
+    furnitureStyle === "finance" ||
+    /مالي|محاسب|حسابات|ميزانية|أرقام|ارقام|فواتير|فاتورة|مبيعات|صفقات|إيراد|ايراد|finance|account|sales|revops|invoice|sheet|budget|tax|crypto/.test(
+      combined,
+    )
+  ) {
+    return {
+      primaryQuery: "finance",
+      categoryLabelAr: "المالية والحسابات والمبيعات",
+      chips: [
+        { label: "مالية وميزانيات (finance)", query: "finance" },
+        { label: "جداول وإحصاء (sheets)", query: "sheets" },
+        { label: "عمليات وإيرادات (revops)", query: "revops" },
+        { label: "مبيعات وصفقات (sales)", query: "sales" },
+        { label: "تحليل محاسبي (accounting)", query: "accounting" },
+        { label: "تقارير وأرقام (analytics)", query: "analytics" },
+      ],
+    };
+  }
+
+  // 5. Customer Service / Support
+  if (
+    /عملاء|خدمة|دعم|مساعدة|شكاوى|استفسار|support|customer|helpdesk|crm/.test(
+      combined,
+    )
+  ) {
+    return {
+      primaryQuery: "support",
+      categoryLabelAr: "خدمة العملاء والدعم الفني",
+      chips: [
+        { label: "دعم فني (support)", query: "support" },
+        { label: "خدمة عملاء (customer)", query: "customer" },
+        { label: "صياغة ردود (email)", query: "email" },
+        { label: "حل مشكلات (troubleshooting)", query: "troubleshooting" },
+        { label: "إدارة التذاكر (tickets)", query: "tickets" },
+      ],
+    };
+  }
+
+  // 6. Default / General Management & Operations (GM سلمان)
+  return {
+    primaryQuery: "planning",
+    categoryLabelAr: "الإدارة والتخطيط وتنسيق المهام",
+    chips: [
+      { label: "تخطيط ومتابعة (planning)", query: "planning" },
+      { label: "إدارة مشاريع (management)", query: "management" },
+      { label: "ملخصات تنفيذية (summary)", query: "summary" },
+      { label: "أتمتة الأعمال (automation)", query: "automation" },
+      { label: "تنسيق الفريق (workflow)", query: "workflow" },
+      { label: "صياغة المراسلات (email)", query: "email" },
+    ],
+  };
 }
 
 export const SKILL_CATALOG: SkillDefinition[] = [
@@ -111,6 +260,8 @@ export const SKILL_CATALOG: SkillDefinition[] = [
     toolGroup: "sheets",
   },
 ];
+
+export const CATALOG_SKILLS = SKILL_CATALOG;
 
 export function resolveSkillMeta(skillId: string): SkillDefinition | undefined {
   return SKILL_CATALOG.find((skill) => skill.id === skillId);
